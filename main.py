@@ -842,7 +842,7 @@ if __name__ == "__main__":
     init_db()
     
     # 1. BOT AÇILIRKEN BULUTTAN VERİYİ ÇEK (RESTORE)
-    restore_from_cloud()
+    # restore_from_cloud()
     
     start_scheduler()
     keep_alive() # Flask sunucusu başlatıldı
@@ -862,3 +862,4 @@ if __name__ == "__main__":
         except Exception as e:
             print(f"Hata: {e}")
             time.sleep(5)
+
