@@ -13,12 +13,12 @@ import os
 # --- AYARLAR ---
 BOT_TOKEN = "8329709843:AAFOo0UajaMztlVT4jNY47V9Apw3u354i2Y"
 BOT_USERNAME = "ibadetciftligi_bot" 
-# Threaded=False veritabanı kilitlenmelerini önler
+# Threaded=False veritabanı kilitlenmesini önler
 bot = telebot.TeleBot(BOT_TOKEN, threaded=False)
 DB_NAME = "ibadet_ciftligi.db"
 
 # --- JSONBIN AYARLARI (YEDEKLEME İÇİN) ---
-# Buraya JsonBin.io'dan aldığın kodları tırnak içine yapıştır:
+# JsonBin.io'dan aldığın kodları buraya yapıştır:
 JSONBIN_MASTER_KEY = "$2a$10$omG4QT.h/MV6wz5WTmZFsu/sL7j82fX8Sh64yr9xgK2ZYH/Pgw622" 
 JSONBIN_BIN_ID = "692dfc3f43b1c97be9d14abb"
 
@@ -53,7 +53,6 @@ NAMAZ_VAKITLERI = ["Sabah", "Öğle", "İkindi", "Akşam", "Yatsı"]
 NAMAZ_EMOJILERI = ["🌅", "☀️", "🌤️", "🌇", "🌌"]
 
 # Görev Listesi ve Ödülleri
-# DÜZELTME: 5. Görev ödülü isteğin üzerine 2 yapıldı.
 GUNLUK_GOREVLER = [
     {"id": 0, "text": "50 'La İlahe İllallah' Çek", "emoji": "📿", "reward": 1},
     {"id": 1, "text": "50 'Salavat' Çek", "emoji": "🌹", "reward": 1},
@@ -64,7 +63,7 @@ GUNLUK_GOREVLER = [
 
 # --- VERİTABANI İŞLEMLERİ ---
 def get_db_connection():
-    # Timeout eklendi, kilitlenmeyi önler
+    # Timeout=30 veritabanı kilitlenmesini önler
     conn = sqlite3.connect(DB_NAME, timeout=30, check_same_thread=False)
     conn.row_factory = sqlite3.Row
     return conn
@@ -118,15 +117,12 @@ def init_db():
 # --- YEDEKLEME SİSTEMİ (JSONBIN) ---
 def backup_to_cloud():
     """Veritabanını JSON'a çevirip Buluta Yükler"""
-    # Bu fonksiyon arka planda çalışır, kullanıcıya mesaj atmaz.
     try:
         conn = get_db_connection()
         
-        # Kullanıcıları çek (dict formatında)
         users_query = conn.execute("SELECT * FROM users").fetchall()
         users = [dict(row) for row in users_query]
         
-        # Civcivleri çek
         chickens_query = conn.execute("SELECT * FROM chickens").fetchall()
         chickens = [dict(row) for row in chickens_query]
         
@@ -139,10 +135,9 @@ def backup_to_cloud():
             "Content-Type": "application/json",
             "X-Master-Key": JSONBIN_MASTER_KEY
         }
-        
         requests.put(url, json=data, headers=headers)
     except:
-        pass # Yedekleme hatası olursa bot durmasın
+        pass 
 
 def restore_from_cloud():
     """Bot açılınca Buluttaki veriyi çekip DB'ye yazar"""
@@ -164,7 +159,6 @@ def restore_from_cloud():
             conn = get_db_connection()
             c = conn.cursor()
             
-            # Temizle ve yeniden yaz
             c.execute("DELETE FROM users")
             c.execute("DELETE FROM chickens")
             
@@ -203,14 +197,11 @@ def check_daily_reset(user_id):
         conn = get_db_connection()
         c = conn.cursor()
         user = c.execute("SELECT * FROM users WHERE user_id=?", (user_id,)).fetchone()
-        
-        if not user:
-            conn.close()
-            return
+        if not user: return
 
         today = datetime.date.today().isoformat()
-        updates = {}
         
+        updates = {}
         if user['last_prayer_date'] != today:
             updates['last_prayer_date'] = today
             updates['prayed_mask'] = "00000"
@@ -267,7 +258,7 @@ def main_menu_keyboard():
     markup = types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
     markup.add("📜 Oyun Nasıl Oynanır?")
     markup.add("🕋 Namaz Takibi", "📝 Günlük Görevler")
-    markup.add("🐥 Civciv Besle", "🏪 Civciv Pazarı")
+    markup.add("🐥 Civciv Besle", "🛒 Civciv Pazarı")
     markup.add("🥚 Yumurta Pazarı", "📊 Genel Durum")
     markup.add("🏆 Haftalık Sıralama", "👥 Referans Sistemi")
     markup.add("📍 Konum Güncelle")
@@ -277,14 +268,14 @@ def namaz_menu_keyboard(user_id):
     conn = get_db_connection()
     user = conn.execute("SELECT prayed_mask FROM users WHERE user_id=?", (user_id,)).fetchone()
     conn.close()
-    mask = list(user['prayed_mask'] if user['prayed_mask'] else "00000")
+    mask = list(user['prayed_mask'])
     
     markup = types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
     buttons = []
     
     for idx, vakit in enumerate(NAMAZ_VAKITLERI):
         emoji = NAMAZ_EMOJILERI[idx]
-        if idx < len(mask) and mask[idx] == '1':
+        if mask[idx] == '1':
             btn_text = f"✅ {vakit} (Kılındı)"
         else:
             btn_text = f"{emoji} {vakit} Kıldım"
@@ -300,12 +291,12 @@ def gorev_menu_keyboard(user_id):
     conn = get_db_connection()
     user = conn.execute("SELECT tasks_mask FROM users WHERE user_id=?", (user_id,)).fetchone()
     conn.close()
-    mask = list(user['tasks_mask'] if user['tasks_mask'] else "00000")
+    mask = list(user['tasks_mask'])
     
     markup = types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=1)
     
     for idx, gorev in enumerate(GUNLUK_GOREVLER):
-        if idx < len(mask) and mask[idx] == '1':
+        if mask[idx] == '1':
             btn_text = f"✅ {gorev['text']} (Yapıldı)"
         else:
             btn_text = f"{gorev['emoji']} {gorev['text']} (+{gorev['reward']} Yem)"
@@ -352,7 +343,7 @@ def civciv_besle_keyboard(user_id):
         return markup, False
         
     for chick in chickens:
-        color_info = COLORS.get(chick['color_code'], {"name": "Bilinmeyen", "emoji": "❓"})
+        color_info = COLORS[chick['color_code']]
         progress = chick['feed_count']
         btn_text = f"{color_info['emoji']} {color_info['name']} Civcivi Besle ({progress}/10)"
         markup.add(btn_text)
@@ -380,8 +371,8 @@ def get_prayer_times_from_api(city, district):
                 "Akşam": timings['Maghrib'],
                 "Yatsı": timings['Isha']
             }
-    except:
-        pass
+    except Exception as e:
+        print(f"API Hatası: {e}")
     return None
 
 def scheduled_prayer_check():
@@ -426,7 +417,6 @@ def send_welcome(message):
     user = c.execute("SELECT * FROM users WHERE user_id=?", (user_id,)).fetchone()
     
     if not user:
-        # Hata yakalama eklendi (Lock hatası için)
         try:
             c.execute("INSERT INTO users (user_id, username, last_egg_update, referrer_id, state) VALUES (?, ?, ?, ?, ?)", 
                       (user_id, first_name, time.time(), referrer_id, 'start_location'))
@@ -440,7 +430,7 @@ def send_welcome(message):
                 except:
                     pass
             
-            # YENİ KULLANICI GELDİ -> YEDEK AL
+            # YENİ KULLANICI -> YEDEK AL
             backup_to_cloud()
             
             welcome_msg = (
@@ -456,13 +446,12 @@ def send_welcome(message):
         except sqlite3.IntegrityError:
              bot.send_message(message.chat.id, f"👋 Tekrar hoş geldin {first_name} kardeşim!", reply_markup=main_menu_keyboard())
     else:
-        # İsim güncelle ve ana menüye dön
         try:
             c.execute("UPDATE users SET username=?, state='main' WHERE user_id=?", (first_name, user_id))
             conn.commit()
             bot.send_message(message.chat.id, f"👋 Tekrar hoş geldin {first_name} kardeşim!", reply_markup=main_menu_keyboard())
         except:
-            bot.send_message(message.chat.id, f"👋 Tekrar hoş geldin {first_name} kardeşim!", reply_markup=main_menu_keyboard())
+             bot.send_message(message.chat.id, f"👋 Tekrar hoş geldin {first_name} kardeşim!", reply_markup=main_menu_keyboard())
     
     conn.close()
 
@@ -497,23 +486,21 @@ def handle_menus(message):
     text = message.text
     first_name = message.from_user.first_name
     
-    # Kullanıcı kaydı var mı?
     conn = get_db_connection()
     user_data = conn.execute("SELECT * FROM users WHERE user_id=?", (user_id,)).fetchone()
     
-    # Eğer bot yeniden başlatıldıysa ve kullanıcı varsa ama session yoksa
     if not user_data:
         conn.close()
         send_welcome(message)
         return
 
-    # İsim güncelle
     try:
         if user_data['username'] != first_name:
             conn.execute("UPDATE users SET username=? WHERE user_id=?", (first_name, user_id))
             conn.commit()
     except:
         pass
+
     conn.close()
 
     check_daily_reset(user_id)
@@ -521,7 +508,6 @@ def handle_menus(message):
     if new_eggs > 0:
         bot.send_message(user_id, f"🥚 Kümeste **{new_eggs}** yeni yumurta birikmiş!", parse_mode="Markdown")
         
-    # Kullanıcı durumunu (state) çek (Veritabanından tekrar alıyoruz güncel olsun)
     conn = get_db_connection()
     try:
         user_state_row = conn.execute("SELECT state FROM users WHERE user_id=?", (user_id,)).fetchone()
@@ -549,7 +535,7 @@ def handle_menus(message):
             conn.commit()
             bot.send_message(user_id, f"✅ {amount} yumurta satıldı!\n💰 Kazanılan: **{earn} Altın**\n🥚 Kalan: {user['eggs_balance']-amount}", parse_mode="Markdown")
             
-            # SATIŞ YAPILDI -> YEDEK AL
+            # SATIŞ -> YEDEK AL
             backup_to_cloud()
         else:
             bot.send_message(user_id, f"⚠️ Yetersiz yumurta! Sahip olduğun: {user['eggs_balance']}")
@@ -564,6 +550,7 @@ def handle_menus(message):
 
     elif text == "📜 Oyun Nasıl Oynanır?":
         update_user_state(user_id, 'info')
+        # BURASI DÜZELTİLDİ: Orijinal metin geri eklendi
         info_text = (
             "📜 **OYUN NASIL OYNANIR?**\n\n"
             "1️⃣ **Namaz Takibi:** 5 Vakit namazını kıldıkça işaretle, her vakit için **10 Altın** kazan! 💰\n"
@@ -586,7 +573,6 @@ def handle_menus(message):
                          parse_mode="Markdown", reply_markup=namaz_menu_keyboard(user_id))
     
     elif "Kıldım" in text:
-        # Örn: "🌅 Sabah Kıldım"
         found_idx = -1
         for idx, vakit in enumerate(NAMAZ_VAKITLERI):
             if vakit in text:
@@ -621,10 +607,8 @@ def handle_menus(message):
                          parse_mode="Markdown", reply_markup=gorev_menu_keyboard(user_id))
 
     elif "(+" in text and "Yem)" in text:
-        # Görev butonuna basıldı. Onay isteyelim.
         target_task_id = -1
         for g in GUNLUK_GOREVLER:
-            # Buton metninin içinde görevin metni geçiyor mu?
             if g['text'] in text:
                 target_task_id = g['id']
                 break
@@ -650,7 +634,6 @@ def handle_menus(message):
         bot.send_message(user_id, info, parse_mode="Markdown", reply_markup=civciv_pazar_keyboard(user_id))
 
     elif "Civciv (50 Altın)" in text:
-        # Text örn: "🐥 Sarı Civciv (50 Altın)"
         selected_color_code = None
         for code, details in COLORS.items():
             if details['name'] in text:
@@ -691,7 +674,6 @@ def handle_menus(message):
                              parse_mode="Markdown", reply_markup=markup)
 
     elif "Civcivi Besle" in text:
-        # Besleme İşlemi
         conn = get_db_connection()
         c = conn.cursor()
         chickens = c.execute("SELECT * FROM chickens WHERE user_id=?", (user_id,)).fetchall()
@@ -710,15 +692,12 @@ def handle_menus(message):
             if user['feed'] < 1:
                 bot.send_message(user_id, "⚠️ Yemin bitti! Görev yaparak kazanabilirsin.")
             else:
-                # Besle
                 c.execute("UPDATE chickens SET feed_count = feed_count + 1 WHERE id=?", (target_chick_id,))
                 c.execute("UPDATE users SET feed = feed - 1 WHERE user_id=?", (user_id,))
                 conn.commit()
                 
-                # Güncel yemi almak için tekrar sorgula
                 updated_user = c.execute("SELECT feed FROM users WHERE user_id=?", (user_id,)).fetchone()
                 
-                # Tavuk oldu mu?
                 updated_chick = c.execute("SELECT * FROM chickens WHERE id=?", (target_chick_id,)).fetchone()
                 if updated_chick['feed_count'] >= 10:
                     c.execute("DELETE FROM chickens WHERE id=?", (target_chick_id,))
@@ -728,7 +707,7 @@ def handle_menus(message):
                 else:
                     bot.send_message(user_id, f"✅ Civciv yemlendi!\n🐛 Kalan Yem: {updated_user['feed']}")
                 
-                # BESLEME YAPILDI -> YEDEK AL
+                # BESLEME -> YEDEK AL
                 backup_to_cloud()
                 
                 new_markup, _ = civciv_besle_keyboard(user_id)
@@ -826,10 +805,7 @@ def process_task_confirmation(message, task_id):
         if mask[task_id] == '0':
             mask[task_id] = '1'
             new_mask = "".join(mask)
-            
-            # BURADA ÖDÜL MİKTARINI LİSTEDEN ALIYORUZ
             reward = GUNLUK_GOREVLER[task_id]['reward'] 
-            
             c.execute("UPDATE users SET tasks_mask=?, feed=feed+? WHERE user_id=?", (new_mask, reward, user_id))
             conn.commit()
             bot.send_message(user_id, f"✅ Görev onaylandı! **+{reward} Yem** kazandın.", parse_mode="Markdown", reply_markup=gorev_menu_keyboard(user_id))
@@ -847,7 +823,7 @@ def start_scheduler():
     scheduler = BackgroundScheduler()
     scheduler.add_job(scheduled_prayer_check, 'interval', minutes=15)
     
-    # Otomatik yedekleme (Her ihtimale karşı)
+    # 15 dakikada bir otomatik yedekle
     scheduler.add_job(backup_to_cloud, 'interval', minutes=15)
     
     def reset_weekly():
@@ -865,24 +841,23 @@ def start_scheduler():
 if __name__ == "__main__":
     init_db()
     
-    # 1. BOT AÇILIRKEN BULUTTAN VERİ ÇEK (RESTORE)
+    # 1. BOT AÇILIRKEN BULUTTAN VERİYİ ÇEK (RESTORE)
     restore_from_cloud()
     
     start_scheduler()
-    keep_alive() # Flask sunucusunu başlat
+    keep_alive() # Flask sunucusu başlatıldı
     
-    print("Bot ve Web Server başlatıldı...")
-    
-    # 2. 409 CONFLICT HATASINI ÖNLEMEK İÇİN
+    # Webhook temizliği (409 hatası için)
     try:
         bot.remove_webhook()
         time.sleep(1)
     except:
         pass
+
+    print("Bot ve Web Server başlatıldı...")
     
     while True:
         try:
-            # skip_pending=True ile geçmiş çakışmaları atla
             bot.infinity_polling(timeout=60, long_polling_timeout=20, skip_pending=True)
         except Exception as e:
             print(f"Hata: {e}")
