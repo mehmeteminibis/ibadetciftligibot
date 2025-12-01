@@ -11,7 +11,7 @@ from threading import Thread
 import os
 
 # --- AYARLAR ---
-BOT_TOKEN = "8329709843:AAFOo0UajaMztlVT4jNY47V9Apw3u354i2Y"
+BOT_TOKEN = "8329709843:AAHiIyYpEWz6Bl8IzzRvdbVpnMIoA3wogMQ"
 BOT_USERNAME = "ibadetciftligi_bot" 
 # Threaded=False veritabanı kilitlenmesini önler
 bot = telebot.TeleBot(BOT_TOKEN, threaded=False)
@@ -842,7 +842,7 @@ if __name__ == "__main__":
     init_db()
     
     # 1. BOT AÇILIRKEN BULUTTAN VERİYİ ÇEK (RESTORE)
-    # restore_from_cloud()
+    restore_from_cloud()
     
     start_scheduler()
     keep_alive() # Flask sunucusu başlatıldı
@@ -862,4 +862,5 @@ if __name__ == "__main__":
         except Exception as e:
             print(f"Hata: {e}")
             time.sleep(5)
+
 
