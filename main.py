@@ -560,7 +560,7 @@ def handle_menus(message):
             "5️⃣ **Yumurta & Sıralama:** Her tavuk sana **4 saatte 1 yumurta** verir. Yumurtalar seni haftalık sıralamada yükseltir! 🏆\n"
             "6️⃣ **Yumurta Pazarı:** Yumurtalarını satarak (10 adedi 1 Altın) altına çevirebilirsin.\n"
             "7️⃣ **Referans:** Arkadaşlarını davet et, her arkadaşın için **+3 Yem** kazan! 🤝\n\n"
-            "Hadi Bismillah de ve başla! ❤️"
+            "Hadi Yumurta Üretimine Başla ve Bu Haftanın 1.si Sen Ol!"
         )
         bot.send_message(user_id, info_text, parse_mode="Markdown")
 
@@ -755,18 +755,54 @@ def handle_menus(message):
     elif text == "📊 Genel Durum":
         update_user_state(user_id, 'status')
         conn = get_db_connection()
-        user = conn.execute("SELECT * FROM users WHERE user_id=?", (user_id,)).fetchone()
+        c = conn.cursor()
+        
+        # 1. Kullanıcı verisi
+        user = c.execute("SELECT * FROM users WHERE user_id=?", (user_id,)).fetchone()
+        
+        # 2. Civciv Sayısı (Senin istediğin 3/8 formatı için)
+        civciv_sayisi = c.execute("SELECT COUNT(*) FROM chickens WHERE user_id=?", (user_id,)).fetchone()[0]
+        
+        # 3. Haftalık Sıralama Hesaplama
+        # Senden daha yüksek yumurta skoru olan kişi sayısı + 1 = Senin sıran
+        siralama = c.execute("SELECT COUNT(*) FROM users WHERE eggs_score > ?", (user['eggs_score'],)).fetchone()[0] + 1
+        
+        # 4. Bir Sonraki Yumurtaya Kalan Süre Hesaplama
+        if user['hens'] > 0:
+            now = time.time()
+            last_update = user['last_egg_update'] if user['last_egg_update'] else now
+            gecen_sure = now - last_update
+            dongu_suresi = 14400 # 4 saat (Saniye cinsinden)
+            
+            kalan_saniye = dongu_suresi - (gecen_sure % dongu_suresi)
+            
+            # Saniyeyi Saat:Dakika:Saniye formatına çevir
+            m, s = divmod(kalan_saniye, 60)
+            h, m = divmod(m, 60)
+            kalan_sure_yazisi = "{:02d}:{:02d}:{:02d}".format(int(h), int(m), int(s))
+        else:
+            kalan_sure_yazisi = "Tavuk Yok 🛑"
+
+        # 5. İbadet ve Görev Sayıları
+        namaz_durumu = user['prayed_mask'].count('1')
+        gorev_durumu = user['tasks_mask'].count('1')
+        
         conn.close()
         
+        # SENİN İSTEDİĞİN TASLAK (Birebir Format)
         text_msg = (
-            f"📊 **GENEL DURUM**\n\n"
-            f"👤 **Çiftçi Adı:** {user['username']}\n"
-            f"📍 **Güncel Konum:** {user['city']} / {user['district']}\n"
+            f"👤 **Çiftçi:** {user['username']}\n"
+            f"📍 **Konum:** {user['city']} / {user['district']}\n"
             f"💰 **Altın Miktarı:** {user['gold']}\n"
             f"🐛 **Yem Miktarı:** {user['feed']}\n"
+            f"🐥 **Civciv Sayısı:** {civciv_sayisi}/8\n"
             f"🐓 **Tavuk Sayısı:** {user['hens']}\n"
-            f"🥚 **Yumurta Sayısı:** {user['eggs_balance']}\n"
-            f"🏆 **Sıralamadaki Sayın:** {user['eggs_score']}\n"
+            f"🥚 **Güncel Yumurta Sayısı:** {user['eggs_balance']}\n"
+            f"🐔 **Bir Sonraki Yumurtaya Kalan Süre:** {kalan_sure_yazisi}\n"
+            f"🏆 **Haftalık Sıralaman:** {siralama}\n\n"
+            f"📅 **Bugünkü İbadetler:**\n"
+            f"🕌 **Namazlar:** {namaz_durumu}/5\n"
+            f"📝 **Günlük Görevler:** {gorev_durumu}/5"
         )
         bot.send_message(user_id, text_msg, parse_mode="Markdown")
 
@@ -862,5 +898,6 @@ if __name__ == "__main__":
         except Exception as e:
             print(f"Hata: {e}")
             time.sleep(5)
+
 
 
