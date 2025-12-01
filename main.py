@@ -560,7 +560,7 @@ def handle_menus(message):
             "5️⃣ **Yumurta & Sıralama:** Her tavuk sana **4 saatte 1 yumurta** verir. Yumurtalar seni haftalık sıralamada yükseltir! 🏆\n"
             "6️⃣ **Yumurta Pazarı:** Yumurtalarını satarak (10 adedi 1 Altın) altına çevirebilirsin.\n"
             "7️⃣ **Referans:** Arkadaşlarını davet et, her arkadaşın için **+3 Yem** kazan! 🤝\n\n"
-            "Hadi Yumurta Üretimine Başla ve Bu Haftanın 1.si Sen Ol!"
+            "Hadi Yumurta Üretimine Başla ve Bu Haftanın Birincisi Sen Ol!"
         )
         bot.send_message(user_id, info_text, parse_mode="Markdown")
 
@@ -898,6 +898,7 @@ if __name__ == "__main__":
         except Exception as e:
             print(f"Hata: {e}")
             time.sleep(5)
+
 
 
 
