@@ -11,11 +11,9 @@ from threading import Thread
 import os
 
 # --- AYARLAR ---
-# Render'da tokeni gizlemek istersen Environment Variables kullanabilirsin.
-# Şimdilik kolaylık olsun diye burada bırakıyorum.
 BOT_TOKEN = "8329709843:AAFOo0UajaMztlVT4jNY47V9Apw3u354i2Y"
 BOT_USERNAME = "ibadetciftligi_bot" 
-bot = telebot.TeleBot(BOT_TOKEN)
+bot = telebot.TeleBot(BOT_TOKEN, threaded=False) # Threaded False yaparak kilitlenmeyi azaltıyoruz
 DB_NAME = "ibadet_ciftligi.db"
 
 # --- FLASK SUNUCUSU (7/24 ÇALIŞMASI İÇİN) ---
@@ -26,7 +24,6 @@ def home():
     return "Ibadet Ciftligi Botu Aktif! (7/24)"
 
 def run():
-    # Render genellikle port bilgisini environment variable olarak verir
     port = int(os.environ.get("PORT", 8080))
     app.run(host='0.0.0.0', port=port)
 
@@ -49,21 +46,25 @@ COLORS = {
 NAMAZ_VAKITLERI = ["Sabah", "Öğle", "İkindi", "Akşam", "Yatsı"]
 NAMAZ_EMOJILERI = ["🌅", "☀️", "🌤️", "🌇", "🌌"]
 
-# Görev Listesi ve Ödülleri (BURAYI KONTROL ETTİM, 2 YEM VERİYOR)
 GUNLUK_GOREVLER = [
     {"id": 0, "text": "50 'La İlahe İllallah' Çek", "emoji": "📿", "reward": 1},
     {"id": 1, "text": "50 'Salavat' Çek", "emoji": "🌹", "reward": 1},
     {"id": 2, "text": "50 'Estağfirullah' Çek", "emoji": "🤲", "reward": 1},
     {"id": 3, "text": "50 'Subhanallahi ve Bihamdihi' Çek", "emoji": "✨", "reward": 1},
-    {"id": 4, "text": "1 Adet Kaza/Nafile Namazı Kıl", "emoji": "🕌", "reward": 2} # Burası 2 olarak ayarlı
+    {"id": 4, "text": "1 Adet Kaza/Nafile Namazı Kıl", "emoji": "🕌", "reward": 2}
 ]
 
 # --- VERİTABANI İŞLEMLERİ ---
+# GÜNCELLEME: Timeout eklendi. Veritabanı meşgulse 30 saniye bekler, hata vermez.
+def get_db_connection():
+    conn = sqlite3.connect(DB_NAME, timeout=30, check_same_thread=False)
+    conn.row_factory = sqlite3.Row
+    return conn
+
 def init_db():
-    conn = sqlite3.connect(DB_NAME)
+    conn = get_db_connection()
     c = conn.cursor()
     
-    # Kullanıcılar Tablosu
     c.execute('''CREATE TABLE IF NOT EXISTS users (
         user_id INTEGER PRIMARY KEY,
         username TEXT,
@@ -83,7 +84,6 @@ def init_db():
         state TEXT DEFAULT 'main'
     )''')
     
-    # Civcivler Tablosu
     c.execute('''CREATE TABLE IF NOT EXISTS chickens (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         user_id INTEGER,
@@ -91,7 +91,6 @@ def init_db():
         feed_count INTEGER DEFAULT 0
     )''')
     
-    # Sütun eksikliği kontrolü (Eski DB uyumluluğu)
     try:
         c.execute("SELECT state FROM users LIMIT 1")
     except sqlite3.OperationalError:
@@ -105,74 +104,84 @@ def init_db():
     conn.commit()
     conn.close()
 
-def get_db_connection():
-    conn = sqlite3.connect(DB_NAME)
-    conn.row_factory = sqlite3.Row
-    return conn
-
 # --- YARDIMCI FONKSİYONLAR ---
 
 def update_user_state(user_id, state):
-    conn = get_db_connection()
-    c = conn.cursor()
-    c.execute("UPDATE users SET state=? WHERE user_id=?", (state, user_id))
-    conn.commit()
-    conn.close()
+    try:
+        conn = get_db_connection()
+        c = conn.cursor()
+        c.execute("UPDATE users SET state=? WHERE user_id=?", (state, user_id))
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        print(f"State Update Hatası: {e}")
 
 def check_daily_reset(user_id):
-    conn = get_db_connection()
-    c = conn.cursor()
-    user = c.execute("SELECT * FROM users WHERE user_id=?", (user_id,)).fetchone()
-    today = datetime.date.today().isoformat()
-    
-    updates = {}
-    # Eğer kullanıcı yeni ise veya tarih boşsa bugünü ayarla
-    current_prayer_date = user['last_prayer_date']
-    if current_prayer_date != today:
-        updates['last_prayer_date'] = today
-        updates['prayed_mask'] = "00000"
+    try:
+        conn = get_db_connection()
+        c = conn.cursor()
+        user = c.execute("SELECT * FROM users WHERE user_id=?", (user_id,)).fetchone()
         
-    current_task_date = user['last_task_date']
-    if current_task_date != today:
-        updates['last_task_date'] = today
-        updates['tasks_mask'] = "00000"
+        if not user:
+            conn.close()
+            return
+
+        today = datetime.date.today().isoformat()
+        updates = {}
         
-    if updates:
-        sql = "UPDATE users SET " + ", ".join([f"{k}=?" for k in updates.keys()]) + " WHERE user_id=?"
-        vals = list(updates.values()) + [user_id]
-        c.execute(sql, vals)
-        conn.commit()
-    conn.close()
+        # None kontrolü eklendi
+        current_prayer_date = user['last_prayer_date']
+        if current_prayer_date != today:
+            updates['last_prayer_date'] = today
+            updates['prayed_mask'] = "00000"
+            
+        current_task_date = user['last_task_date']
+        if current_task_date != today:
+            updates['last_task_date'] = today
+            updates['tasks_mask'] = "00000"
+            
+        if updates:
+            sql = "UPDATE users SET " + ", ".join([f"{k}=?" for k in updates.keys()]) + " WHERE user_id=?"
+            vals = list(updates.values()) + [user_id]
+            c.execute(sql, vals)
+            conn.commit()
+        conn.close()
+    except Exception as e:
+        print(f"Daily Reset Hatası: {e}")
 
 def calculate_egg_production(user_id):
-    conn = get_db_connection()
-    c = conn.cursor()
-    user = c.execute("SELECT * FROM users WHERE user_id=?", (user_id,)).fetchone()
-    
-    produced_eggs = 0
-    if user['hens'] > 0:
-        now = time.time()
-        last_update = user['last_egg_update'] if user['last_egg_update'] else now
-        elapsed_seconds = now - last_update
+    try:
+        conn = get_db_connection()
+        c = conn.cursor()
+        user = c.execute("SELECT * FROM users WHERE user_id=?", (user_id,)).fetchone()
         
-        production_cycle = 14400 # 4 saat
-        cycles = int(elapsed_seconds // production_cycle)
-        
-        if cycles > 0:
-            produced_eggs = cycles * user['hens']
-            new_balance = user['eggs_balance'] + produced_eggs
-            new_score = user['eggs_score'] + produced_eggs
-            new_time = last_update + (cycles * production_cycle)
+        produced_eggs = 0
+        if user and user['hens'] > 0:
+            now = time.time()
+            last_update = user['last_egg_update'] if user['last_egg_update'] else now
+            elapsed_seconds = now - last_update
             
-            c.execute("UPDATE users SET eggs_balance=?, eggs_score=?, last_egg_update=? WHERE user_id=?", 
-                      (new_balance, new_score, new_time, user_id))
+            production_cycle = 14400 # 4 saat
+            cycles = int(elapsed_seconds // production_cycle)
+            
+            if cycles > 0:
+                produced_eggs = cycles * user['hens']
+                new_balance = user['eggs_balance'] + produced_eggs
+                new_score = user['eggs_score'] + produced_eggs
+                new_time = last_update + (cycles * production_cycle)
+                
+                c.execute("UPDATE users SET eggs_balance=?, eggs_score=?, last_egg_update=? WHERE user_id=?", 
+                          (new_balance, new_score, new_time, user_id))
+                conn.commit()
+        elif user:
+            c.execute("UPDATE users SET last_egg_update=? WHERE user_id=?", (time.time(), user_id))
             conn.commit()
-    else:
-        c.execute("UPDATE users SET last_egg_update=? WHERE user_id=?", (time.time(), user_id))
-        conn.commit()
-        
-    conn.close()
-    return produced_eggs
+            
+        conn.close()
+        return produced_eggs
+    except Exception as e:
+        print(f"Yumurta Hatası: {e}")
+        return 0
 
 # --- KLAVYELER ---
 
@@ -191,7 +200,6 @@ def namaz_menu_keyboard(user_id):
     user = conn.execute("SELECT prayed_mask FROM users WHERE user_id=?", (user_id,)).fetchone()
     conn.close()
     
-    # Hata önleyici: Eğer mask boşsa varsayılan ata
     mask_str = user['prayed_mask'] if user['prayed_mask'] else "00000"
     mask = list(mask_str)
     
@@ -303,26 +311,27 @@ def get_prayer_times_from_api(city, district):
     return None
 
 def scheduled_prayer_check():
-    conn = get_db_connection()
-    c = conn.cursor()
-    users = c.execute("SELECT user_id, city, district FROM users WHERE city IS NOT NULL").fetchall()
-    
-    now = datetime.datetime.now()
-    # Türkiye Saati UTC+3 olduğu için sunucu saatini kontrol etmemiz gerekebilir.
-    # Ancak çoğu sunucu UTC çalışır. Basitlik için yerel saat varsayıyoruz.
-    current_time_str = now.strftime("%H:%M")
-    
-    for user in users:
-        times = get_prayer_times_from_api(user['city'], user['district'])
-        if times:
-            for vakit_adi, vakit_saati in times.items():
-                if vakit_saati == current_time_str:
-                    try:
-                        msg = f"📢 **Ezan Vakti!**\n\n📍 {user['city']}/{user['district']} için **{vakit_adi}** vakti girdi.\n\nNamazını kıldıktan sonra 'Namaz Takibi' menüsünden işaretlemeyi unutma! +10 Altın seni bekliyor. 🕌"
-                        bot.send_message(user['user_id'], msg, parse_mode="Markdown")
-                    except:
-                        pass
-    conn.close()
+    try:
+        conn = get_db_connection()
+        c = conn.cursor()
+        users = c.execute("SELECT user_id, city, district FROM users WHERE city IS NOT NULL").fetchall()
+        
+        now = datetime.datetime.now()
+        current_time_str = now.strftime("%H:%M")
+        
+        for user in users:
+            times = get_prayer_times_from_api(user['city'], user['district'])
+            if times:
+                for vakit_adi, vakit_saati in times.items():
+                    if vakit_saati == current_time_str:
+                        try:
+                            msg = f"📢 **Ezan Vakti!**\n\n📍 {user['city']}/{user['district']} için **{vakit_adi}** vakti girdi.\n\nNamazını kıldıktan sonra 'Namaz Takibi' menüsünden işaretlemeyi unutma! +10 Altın seni bekliyor. 🕌"
+                            bot.send_message(user['user_id'], msg, parse_mode="Markdown")
+                        except:
+                            pass
+        conn.close()
+    except Exception as e:
+        print(f"Scheduler Hatası: {e}")
 
 # --- BOT HANDLERS ---
 
@@ -342,34 +351,44 @@ def send_welcome(message):
     c = conn.cursor()
     user = c.execute("SELECT * FROM users WHERE user_id=?", (user_id,)).fetchone()
     
+    # GÜNCELLEME: INSERT hatasını yakalamak için try-except
     if not user:
-        c.execute("INSERT INTO users (user_id, username, last_egg_update, referrer_id, state) VALUES (?, ?, ?, ?, ?)", 
-                  (user_id, first_name, time.time(), referrer_id, 'start_location'))
-        conn.commit()
-        
-        if referrer_id:
-            c.execute("UPDATE users SET feed = feed + 3 WHERE user_id=?", (referrer_id,))
+        try:
+            c.execute("INSERT INTO users (user_id, username, last_egg_update, referrer_id, state) VALUES (?, ?, ?, ?, ?)", 
+                      (user_id, first_name, time.time(), referrer_id, 'start_location'))
             conn.commit()
-            try:
-                bot.send_message(referrer_id, f"🎉 Tebrikler! {first_name} referansınla katıldı. **+3 Yem** kazandın!")
-            except:
-                pass
-        
-        welcome_msg = (
-            f"👋 **Selamun Aleyküm {first_name}!**\n\n"
-            f"🐮 **İbadet Çiftliği'ne Hoş Geldin!**\n"
-            f"Bu bot, hem ibadetlerini takip etmeni sağlayan hem de bu süreçte çiftliğini geliştirip civcivler besleyebileceğin eğlenceli ve manevi bir oyundur.\n\n"
-            f"Namazlarını kıl, zikirlerini çek, altınları topla ve en büyük yumurta üreticisi sen ol! 🏆\n\n"
-            f"Sistemi başlatmak için öncelikle **Şehir ve İlçe** bilgisini girmen gerekiyor.\n"
-            f"Lütfen aralarında boşluk bırakarak yaz (Örn: İstanbul Fatih):"
-        )
-        msg = bot.send_message(message.chat.id, welcome_msg, parse_mode="Markdown", reply_markup=types.ReplyKeyboardRemove())
-        bot.register_next_step_handler(msg, save_location)
+            
+            if referrer_id:
+                try:
+                    c.execute("UPDATE users SET feed = feed + 3 WHERE user_id=?", (referrer_id,))
+                    conn.commit()
+                    bot.send_message(referrer_id, f"🎉 Tebrikler! {first_name} referansınla katıldı. **+3 Yem** kazandın!")
+                except:
+                    pass
+            
+            welcome_msg = (
+                f"👋 **Selamun Aleyküm {first_name}!**\n\n"
+                f"🐮 **İbadet Çiftliği'ne Hoş Geldin!**\n"
+                f"Bu bot, hem ibadetlerini takip etmeni sağlayan hem de bu süreçte çiftliğini geliştirip civcivler besleyebileceğin eğlenceli ve manevi bir oyundur.\n\n"
+                f"Namazlarını kıl, zikirlerini çek, altınları topla ve en büyük yumurta üreticisi sen ol! 🏆\n\n"
+                f"Sistemi başlatmak için öncelikle **Şehir ve İlçe** bilgisini girmen gerekiyor.\n"
+                f"Lütfen aralarında boşluk bırakarak yaz (Örn: İstanbul Fatih):"
+            )
+            msg = bot.send_message(message.chat.id, welcome_msg, parse_mode="Markdown", reply_markup=types.ReplyKeyboardRemove())
+            bot.register_next_step_handler(msg, save_location)
+        except sqlite3.IntegrityError:
+            # Kullanıcı aynı anda iki kere tıklandıysa veya zaten varsa buraya düşer, devam ederiz.
+            bot.send_message(message.chat.id, f"👋 Tekrar hoş geldin {first_name} kardeşim!", reply_markup=main_menu_keyboard())
+
     else:
         # İsim güncelle ve ana menüye dön
-        c.execute("UPDATE users SET username=?, state='main' WHERE user_id=?", (first_name, user_id))
-        conn.commit()
-        bot.send_message(message.chat.id, f"👋 Tekrar hoş geldin {first_name} kardeşim!", reply_markup=main_menu_keyboard())
+        try:
+            c.execute("UPDATE users SET username=?, state='main' WHERE user_id=?", (first_name, user_id))
+            conn.commit()
+            bot.send_message(message.chat.id, f"👋 Tekrar hoş geldin {first_name} kardeşim!", reply_markup=main_menu_keyboard())
+        except sqlite3.OperationalError:
+            # Kilitliyse bile cevap ver
+            bot.send_message(message.chat.id, f"👋 Tekrar hoş geldin {first_name} kardeşim!", reply_markup=main_menu_keyboard())
     
     conn.close()
 
@@ -392,7 +411,7 @@ def save_location(message):
         
         bot.send_message(message.chat.id, f"✅ Konum kaydedildi: {city} / {district}\n\nArtık hazırsın! Menüden 'Oyun Nasıl Oynanır' butonuna basarak sistemi öğrenebilirsin. İyi eğlenceler! 🚜", reply_markup=main_menu_keyboard())
     except Exception as e:
-        bot.send_message(message.chat.id, "Bir hata oluştu. Lütfen tekrar /start yazınız.")
+        bot.send_message(message.chat.id, "Bir hata oluştu veya veritabanı meşgul. Lütfen tekrar /start yazınız.")
 
 # --- ANA MESAJ YÖNETİCİSİ ---
 @bot.message_handler(func=lambda message: True)
@@ -409,9 +428,13 @@ def handle_menus(message):
         send_welcome(message)
         return
 
-    if user_data['username'] != first_name:
-        conn.execute("UPDATE users SET username=? WHERE user_id=?", (first_name, user_id))
-        conn.commit()
+    # İsim güncelleme hatasını yutuyoruz
+    try:
+        if user_data['username'] != first_name:
+            conn.execute("UPDATE users SET username=? WHERE user_id=?", (first_name, user_id))
+            conn.commit()
+    except:
+        pass
     conn.close()
 
     check_daily_reset(user_id)
