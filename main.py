@@ -757,12 +757,23 @@ def start_scheduler():
 if __name__ == "__main__":
     init_db()
     start_scheduler()
-    keep_alive() # Flask sunucusunu ayrı bir thread'de başlat
+    keep_alive() # Flask sunucusunu başlat
+    
     print("Bot ve Web Server başlatıldı...")
     
+    # --- YENİ EKLENEN KISIM: ÇAKIŞMALARI ÖNLEME ---
+    try:
+        # Eski webhook veya takılı kalan güncellemeleri temizle
+        bot.remove_webhook()
+        time.sleep(1)
+    except Exception as e:
+        print(f"Webhook temizleme hatası (önemsiz): {e}")
+    # ----------------------------------------------
+
     while True:
         try:
-            bot.infinity_polling(timeout=60, long_polling_timeout=20)
+            # skip_pending=True diyerek geçmişte birikmiş komutları yoksayıyoruz ki çakışma olmasın
+            bot.infinity_polling(timeout=60, long_polling_timeout=20, skip_pending=True)
         except Exception as e:
             print(f"Hata: {e}")
             time.sleep(5)
