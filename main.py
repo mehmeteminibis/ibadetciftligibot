@@ -11,7 +11,7 @@ import os
 import json
 
 # --- AYARLAR ---
-BOT_TOKEN = "8329709843:AAFOo0UajaMztlVT4jNY47V9Apw3u354i2Y"
+BOT_TOKEN = "8329709843:AAHiIyYpEWz6Bl8IzzRvdbVpnMIoA3wogMQ"
 BOT_USERNAME = "ibadetciftligi_bot" 
 bot = telebot.TeleBot(BOT_TOKEN, threaded=False) 
 DB_NAME = "ibadet_ciftligi.db"
@@ -640,3 +640,4 @@ if __name__ == "__main__":
         except Exception as e:
             print(f"Hata: {e}")
             time.sleep(5)
+
