@@ -421,7 +421,8 @@ def scheduled_prayer_check():
         
         # 🛠️ DEĞİŞİKLİK BURADA YAPILDI 🛠️
         # Sunucu saati (UTC) yerine Türkiye saatini (UTC+3) hesaplıyoruz
-        turkiye_saati = datetime.datetime.utcnow() + datetime.timedelta(hours=3)
+        # utcnow() yerine now(datetime.timezone.utc) kullanıyoruz
+        turkiye_saati = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(hours=3)
         current_time_str = turkiye_saati.strftime("%H:%M")
         
         for user in users:
@@ -1149,6 +1150,7 @@ if __name__ == "__main__":
         except Exception as e:
             print(f"Hata: {e}")
             time.sleep(5)
+
 
 
 
