@@ -767,7 +767,9 @@ def handle_menus(message):
                 f"Bir renk seç ve satın al (50 Altın):")
         bot.send_message(user_id, info, parse_mode="Markdown", reply_markup=civciv_pazar_keyboard(user_id))
 
-    elif "Civciv (50 Altın)" in text:
+    # DÜZELTME: Artık "50 Altın" diye aramıyoruz, çünkü fiyat değişiyor.
+    # Sadece "Civciv (" ve "Altın)" kelimelerini arıyoruz.
+    elif "Civciv (" in text and "Altın)" in text:
         selected_color_code = None
         for code, details in COLORS.items():
             if details['name'] in text:
@@ -778,19 +780,37 @@ def handle_menus(message):
             conn = get_db_connection()
             c = conn.cursor()
             user = c.execute("SELECT * FROM users WHERE user_id=?", (user_id,)).fetchone()
-            chick_count = c.execute("SELECT COUNT(*) FROM chickens WHERE user_id=?", (user_id,)).fetchone()[0]
             
-            if chick_count >= 8:
-                bot.send_message(user_id, "⚠️ Kümesin dolu! (Maks 8 civciv). Önce birini büyütüp tavuk yapmalısın.")
-            elif user['gold'] < 50:
-                bot.send_message(user_id, "⚠️ Yetersiz Bakiye! 50 Altın gerekli.")
+            # --- YENİ FİYAT HESAPLAMA MANTIĞI ---
+            # Önce kaç tane hayvanı var (Civciv + Tavuk) onu buluyoruz
+            mevcut_civciv = c.execute("SELECT COUNT(*) FROM chickens WHERE user_id=?", (user_id,)).fetchone()[0]
+            toplam_hayvan = mevcut_civciv + user['hens']
+            
+            # Fiyatı hesapla:
+            # İlk 2 hayvan (0 ve 1) -> 50 Altın
+            # Sonrakiler -> 50 + ((Toplam - 1) * 20)
+            if toplam_hayvan < 2:
+                guncel_fiyat = 50
             else:
-                c.execute("UPDATE users SET gold=gold-50 WHERE user_id=?", (user_id,))
+                guncel_fiyat = 50 + ((toplam_hayvan - 1) * 20)
+            # ------------------------------------
+
+            if mevcut_civciv >= 8:
+                bot.send_message(user_id, "⚠️ Kümesin dolu! (Maks 8 civciv). Önce birini büyütüp tavuk yapmalısın.")
+            
+            # Kullanıcının parası GÜNCEL FİYATA yetiyor mu?
+            elif user['gold'] < guncel_fiyat:
+                bot.send_message(user_id, f"⚠️ Yetersiz Bakiye! Bu civciv için **{guncel_fiyat} Altın** gerekli.")
+            
+            else:
+                # Altını düş ve civcivi ekle
+                c.execute("UPDATE users SET gold=gold-? WHERE user_id=?", (guncel_fiyat, user_id))
                 c.execute("INSERT INTO chickens (user_id, color_code) VALUES (?, ?)", (user_id, selected_color_code))
                 conn.commit()
-                bot.send_message(user_id, f"✅ {COLORS[selected_color_code]['name']} civciv kümese eklendi!", reply_markup=civciv_pazar_keyboard(user_id))
                 
-                # SATIN ALMA -> YEDEK AL
+                bot.send_message(user_id, f"✅ {COLORS[selected_color_code]['name']} civciv kümese eklendi!\n💰 Ödenen: **{guncel_fiyat} Altın**", reply_markup=civciv_pazar_keyboard(user_id))
+                
+                # YEDEKLEME
                 backup_to_cloud()
             conn.close()
 
@@ -1073,6 +1093,7 @@ if __name__ == "__main__":
         except Exception as e:
             print(f"Hata: {e}")
             time.sleep(5)
+
 
 
 
