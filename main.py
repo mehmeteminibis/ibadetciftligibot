@@ -799,6 +799,39 @@ def handle_menus(message):
             conn = get_db_connection()
             c = conn.cursor()
             user = c.execute("SELECT * FROM users WHERE user_id=?", (user_id,)).fetchone()
+            
+            # --- 🛡️ GÜVENLİK DUVARI: ZAMAN KONTROLÜ ---
+            try:
+                # Kullanıcının şehri kayıtlıysa kontrol et
+                if user['city'] and user['district']:
+                    times = get_prayer_times_from_api(user['city'], user['district'])
+                    
+                    if times:
+                        # 1. Şu anki Türkiye saatini al
+                        tr_now = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(hours=3)
+                        su_anki_saat = tr_now.strftime("%H:%M")
+                        
+                        # 2. İşaretlenen vaktin saatini bul
+                        hedef_vakit_ismi = NAMAZ_VAKITLERI[found_idx] # Örn: 'Akşam'
+                        # API'den gelen saat "18:20 (TRT)" olabilir, temizliyoruz
+                        vakit_saati = times[hedef_vakit_ismi].split()[0].strip()
+                        
+                        # 3. Kıyaslama: Şu anki saat, ezan saatinden küçükse İZİN VERME
+                        # (Örn: Saat 15:00, İkindi 15:45. Daha vakit gelmedi!)
+                        if su_anki_saat < vakit_saati:
+                            bot.send_message(user_id, 
+                                f"⛔ **Henüz Vakit Girmedi!**\n\n"
+                                f"📍 {user['district']} için **{hedef_vakit_ismi}** vakti saat **{vakit_saati}**'de girecek.\n"
+                                f"⏳ Lütfen ezan okunduktan sonra işaretleyiniz."
+                            )
+                            conn.close()
+                            return # İşlemi iptal et
+            except Exception as e:
+                print(f"Vakit kontrol hatası: {e}")
+                # Hata olursa kullanıcıyı engelleme, devam etsin
+            # ------------------------------------------
+
+            # Buradan aşağısı senin eski kodun (Ödül Verme Kısmı)
             mask = list(user['prayed_mask'])
             
             if mask[found_idx] == '0':
@@ -813,7 +846,7 @@ def handle_menus(message):
             else:
                 bot.send_message(user_id, "Bu vakti zaten işaretlemiştin.")
             conn.close()
-
+            
     elif text == "📝 Günlük Görevler":
         update_user_state(user_id, 'tasks')
         conn = get_db_connection()
@@ -1189,6 +1222,7 @@ if __name__ == "__main__":
         except Exception as e:
             print(f"Hata: {e}")
             time.sleep(5)
+
 
 
 
