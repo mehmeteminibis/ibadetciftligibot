@@ -905,7 +905,7 @@ def handle_menus(message):
                 c.execute("INSERT INTO chickens (user_id, color_code) VALUES (?, ?)", (user_id, selected_color_code))
                 conn.commit()
                 
-                bot.send_message(user_id, f"✅ {COLORS[selected_color_code]['name']} civciv kümese eklendi!\n💰 Ödenen: **{guncel_fiyat} Altın**", reply_markup=civciv_pazar_keyboard(user_id))
+                bot.send_message(user_id, f"✅ {COLORS[selected_color_code]['name']} kümese eklendi!\n💰 Ödenen: **{guncel_fiyat} Altın**", reply_markup=civciv_pazar_keyboard(user_id))
                 
                 # YEDEKLEME
                 backup_to_cloud()
@@ -1189,6 +1189,7 @@ if __name__ == "__main__":
         except Exception as e:
             print(f"Hata: {e}")
             time.sleep(5)
+
 
 
 
