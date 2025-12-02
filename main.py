@@ -199,7 +199,10 @@ def check_daily_reset(user_id):
         user = c.execute("SELECT * FROM users WHERE user_id=?", (user_id,)).fetchone()
         if not user: return
 
-        today = datetime.date.today().isoformat()
+        # 🛠️ DEĞİŞİKLİK BURADA:
+        # Sunucu saati yerine, Türkiye saatini (UTC+3) hesaplayıp tarihini alıyoruz.
+        tr_now = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(hours=3)
+        today = tr_now.date().isoformat()
         
         updates = {}
         if user['last_prayer_date'] != today:
@@ -218,7 +221,6 @@ def check_daily_reset(user_id):
         conn.close()
     except:
         pass
-
 def calculate_egg_production(user_id):
     try:
         conn = get_db_connection()
@@ -1150,6 +1152,7 @@ if __name__ == "__main__":
         except Exception as e:
             print(f"Hata: {e}")
             time.sleep(5)
+
 
 
 
