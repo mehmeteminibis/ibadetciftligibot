@@ -114,21 +114,69 @@ def init_db():
     conn.commit()
     conn.close()
 
-# --- YEDEKLEME SİSTEMİ (JSONBIN) ---
+# --- YEDEKLEME SİSTEMİ (HEM YEDEK HEM RAPOR) ---
 def backup_to_cloud():
-    """Veritabanını JSON'a çevirip Buluta Yükler"""
+    """
+    1. Bot için ham veriyi yedekler (sistem_yedegi)
+    2. Senin okuman için detaylı Türkçe rapor hazırlar (okunabilir_rapor)
+    """
     try:
         conn = get_db_connection()
+        conn.row_factory = sqlite3.Row # Sütun isimleriyle erişim için
+        c = conn.cursor()
         
-        users_query = conn.execute("SELECT * FROM users").fetchall()
-        users = [dict(row) for row in users_query]
+        # 1. HAM VERİLERİ ÇEK (Sistemin geri yüklemesi için lazım)
+        users_raw = c.execute("SELECT * FROM users").fetchall()
+        chickens_raw = c.execute("SELECT * FROM chickens").fetchall()
         
-        chickens_query = conn.execute("SELECT * FROM chickens").fetchall()
-        chickens = [dict(row) for row in chickens_query]
+        # Row nesnelerini dict'e çevir (Ham Yedek İçin)
+        users_clean = [dict(row) for row in users_raw]
+        chickens_clean = [dict(row) for row in chickens_raw]
         
+        # 2. DETAYLI RAPOR HAZIRLA (Senin okuman için)
+        # Kullanıcıları puana göre sırala (Yüksekten düşüğe)
+        sorted_users = sorted(users_clean, key=lambda x: x['eggs_score'], reverse=True)
+        
+        rapor_listesi = []
+        
+        for index, u in enumerate(sorted_users, 1):
+            user_id = u['user_id']
+            
+            # Ekstra verileri hesapla
+            civciv_sayisi = c.execute("SELECT COUNT(*) FROM chickens WHERE user_id=?", (user_id,)).fetchone()[0]
+            referans_sayisi = c.execute("SELECT COUNT(*) FROM users WHERE referrer_id=?", (user_id,)).fetchone()[0]
+            
+            # Türkçe ve Emojili Rapor Sözlüğü Oluştur
+            oyuncu_karti = {
+                "Sıralama": index,
+                "👤 Oyuncu Adı": u['username'],
+                "🏆 Haftalık Puan": u['eggs_score'],
+                "🥚 Cüzdan (Satılabilir)": u['eggs_balance'],
+                "💰 Altın Miktarı": float(f"{u['gold']:.2f}"), # Küsuratlı düzgün göster
+                "🐛 Yem Miktarı": u['feed'],
+                "🐓 Tavuk Sayısı": u['hens'],
+                "🐥 Civciv Sayısı": civciv_sayisi,
+                "👥 Getirdiği Referans": referans_sayisi,
+                "📍 Konum": f"{u['city']} / {u['district']}",
+                "🆔 User ID": user_id
+            }
+            rapor_listesi.append(oyuncu_karti)
+            
         conn.close()
 
-        data = {"users": users, "chickens": chickens}
+        # 3. İKİSİNİ BİRLEŞTİR VE GÖNDER
+        data = {
+            "metadata": {
+                "yedekleme_zamani": time.strftime("%Y-%m-%d %H:%M:%S"),
+                "toplam_oyuncu": len(users_clean)
+            },
+            # DİKKAT: Bot geri yüklerken burayı kullanacak (BOZMA)
+            "users": users_clean, 
+            "chickens": chickens_clean,
+            
+            # KEYİF: Sen açıp bakacağın zaman burayı okuyacaksın
+            "DETAYLI_SIRALI_RAPOR": rapor_listesi
+        }
         
         url = f"https://api.jsonbin.io/v3/b/{JSONBIN_BIN_ID}"
         headers = {
@@ -136,8 +184,10 @@ def backup_to_cloud():
             "X-Master-Key": JSONBIN_MASTER_KEY
         }
         requests.put(url, json=data, headers=headers)
-    except:
-        pass 
+        # print("✅ Yedekleme ve Analiz Raporu Gönderildi.") 
+        
+    except Exception as e:
+        print(f"Yedekleme Hatası: {e}")
 
 def restore_from_cloud():
     """Bot açılınca Buluttaki veriyi çekip DB'ye yazar"""
@@ -149,6 +199,9 @@ def restore_from_cloud():
         req = requests.get(url, headers=headers)
         if req.status_code == 200:
             data = req.json().get("record", {})
+            
+            # Sadece sistemin ihtiyacı olan 'users' ve 'chickens' kısmını alıyoruz
+            # 'DETAYLI_SIRALI_RAPOR' kısmını almıyoruz (O sadece okumak içindi)
             users = data.get("users", [])
             chickens = data.get("chickens", [])
             
@@ -1222,6 +1275,7 @@ if __name__ == "__main__":
         except Exception as e:
             print(f"Hata: {e}")
             time.sleep(5)
+
 
 
 
