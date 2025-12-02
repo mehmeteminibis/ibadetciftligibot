@@ -419,13 +419,16 @@ def scheduled_prayer_check():
         c = conn.cursor()
         users = c.execute("SELECT user_id, city, district FROM users WHERE city IS NOT NULL").fetchall()
         
-        now = datetime.datetime.now()
-        current_time_str = now.strftime("%H:%M")
+        # 🛠️ DEĞİŞİKLİK BURADA YAPILDI 🛠️
+        # Sunucu saati (UTC) yerine Türkiye saatini (UTC+3) hesaplıyoruz
+        turkiye_saati = datetime.datetime.utcnow() + datetime.timedelta(hours=3)
+        current_time_str = turkiye_saati.strftime("%H:%M")
         
         for user in users:
             times = get_prayer_times_from_api(user['city'], user['district'])
             if times:
                 for vakit_adi, vakit_saati in times.items():
+                    # API'den gelen saat ile Türkiye saati eşleşiyor mu?
                     if vakit_saati == current_time_str:
                         try:
                             msg = f"📢 **Ezan Vakti!**\n\n📍 {user['city']}/{user['district']} için **{vakit_adi}** vakti girdi.\n\nNamazını kıldıktan sonra 'Namaz Takibi' menüsünden işaretlemeyi unutma! +10 Altın seni bekliyor. 🕌"
@@ -1146,6 +1149,7 @@ if __name__ == "__main__":
         except Exception as e:
             print(f"Hata: {e}")
             time.sleep(5)
+
 
 
 
