@@ -398,12 +398,55 @@ def scheduled_prayer_check():
     except:
         pass
 
+ADMIN_ID = 1120730573  # BURAYA KENDİ ID'Nİ YAZ!
+
 # --- BOT HANDLERS ---
+# --- DUYURU SİSTEMİ (SADECE ADMİN) ---
+
+@bot.message_handler(commands=['duyuru'])
+def duyuru_gonder(message):
+    # 1. Güvenlik Kontrolü: Mesajı atan sen misin?
+    if message.from_user.id != ADMIN_ID:
+        bot.reply_to(message, "⛔ Bu komutu sadece yönetici kullanabilir.")
+        return
+
+    # 2. Mesajın kendisini al (/duyuru kelimesini sil)
+    komut_uzunlugu = len("/duyuru")
+    mesaj = message.text[komut_uzunlugu:].strip()
+
+    if not mesaj:
+        bot.reply_to(message, "⚠️ Lütfen duyuru metnini yazın.\nÖrnek: `/duyuru Arkadaşlar sunucu bakıma girecek!`", parse_mode="Markdown")
+        return
+
+    # 3. Veritabanından herkesi çek
+    conn = get_db_connection()
+    users = conn.execute("SELECT user_id FROM users").fetchall()
+    conn.close()
+
+    basarili = 0
+    basarisiz = 0
+
+    bilgi_mesaji = bot.reply_to(message, f"📢 Duyuru {len(users)} kişiye gönderiliyor... Lütfen bekleyin.")
+
+    # 4. Döngü ile herkese gönder
+    for user in users:
+        try:
+            bot.send_message(user['user_id'], f"📢 **DUYURU**\n\n{mesaj}", parse_mode="Markdown")
+            basarili += 1
+            # Telegram sunucularını yormamak için çok kısa bekletme
+            time.sleep(0.05) 
+        except Exception as e:
+            # Kullanıcı botu engellemiş olabilir
+            basarisiz += 1
+
+    # 5. Rapor ver
+    bot.edit_message_text(f"✅ **İşlem Tamamlandı!**\n\n📨 Gönderilen: {basarili}\n❌ İletilemeyen: {basarisiz} (Botu engellemiş olabilirler)", chat_id=message.chat.id, message_id=bilgi_mesaji.message_id)
 
 @bot.message_handler(commands=['start'])
 def send_welcome(message):
     user_id = message.from_user.id
     first_name = message.from_user.first_name
+    username = message.from_user.username # EKLENDİ: Kullanıcı adı (Bildirim için lazım)
     
     args = message.text.split()
     referrer_id = None
@@ -421,6 +464,21 @@ def send_welcome(message):
             c.execute("INSERT INTO users (user_id, username, last_egg_update, referrer_id, state) VALUES (?, ?, ?, ?, ?)", 
                       (user_id, first_name, time.time(), referrer_id, 'start_location'))
             conn.commit()
+            
+            # 👇 --- YENİ EKLENEN BİLDİRİM KODU (BURAYA SIKIŞTIRDIK) --- 👇
+            try:
+                kullanici_adi = f"@{username}" if username else "Yok"
+                admin_mesaji = (
+                    f"🔔 **YENİ ÇİFTÇİ KATILDI!**\n\n"
+                    f"👤 **İsim:** {first_name}\n"
+                    f"🆔 **ID:** `{user_id}`\n"
+                    f"🔗 **Kullanıcı Adı:** {kullanici_adi}"
+                )
+                # Sadece sana (Admine) mesaj atar
+                bot.send_message(ADMIN_ID, admin_mesaji, parse_mode="Markdown")
+            except:
+                pass 
+            # 👆 --- BİLDİRİM KODU BİTTİ --- 👆
             
             if referrer_id:
                 try:
@@ -947,6 +1005,7 @@ if __name__ == "__main__":
         except Exception as e:
             print(f"Hata: {e}")
             time.sleep(5)
+
 
 
 
