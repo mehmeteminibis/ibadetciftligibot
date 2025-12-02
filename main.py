@@ -1146,12 +1146,13 @@ def process_task_confirmation(message, task_id):
 def start_scheduler():
     scheduler = BackgroundScheduler()
     
-    # DÜZELTME: Namaz vaktini kaçırmamak için her 1 dakikada bir kontrol etmeli
-    scheduler.add_job(scheduled_prayer_check, 'interval', minutes=1)
+    # ❌ BU SATIR ARTIK OLMAMALI (SİLİNCEK):
+    # scheduler.add_job(scheduled_prayer_check, 'interval', minutes=1)
     
-    # Yedekleme 15 dakikada bir olabilir, bu sistemi yormaz
+    # Sadece yedekleme kalsın (Bu sunucuyu yormaz)
     scheduler.add_job(backup_to_cloud, 'interval', minutes=15)
     
+    # Haftalık Sıralama Sıfırlama
     def reset_weekly():
         if datetime.datetime.now().weekday() == 6:
             conn = get_db_connection()
@@ -1161,9 +1162,7 @@ def start_scheduler():
             print("Haftalık sıralama sıfırlandı.")
             backup_to_cloud()
             
-    # Haftalık sıfırlama (Pazar 23:59)
     scheduler.add_job(reset_weekly, 'cron', day_of_week='sun', hour=23, minute=59)
-    
     scheduler.start()
 
 if __name__ == "__main__":
@@ -1190,6 +1189,7 @@ if __name__ == "__main__":
         except Exception as e:
             print(f"Hata: {e}")
             time.sleep(5)
+
 
 
 
