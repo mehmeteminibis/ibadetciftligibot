@@ -747,12 +747,16 @@ def handle_menus(message):
         user = c.execute("SELECT * FROM users WHERE user_id=?", (user_id,)).fetchone()
         
         if user['eggs_balance'] >= 10:
-            earn = int(user['eggs_balance'] * 0.10)
-            if earn < 1: earn = 1
             
+            # --- DÜZELTME 1: int() kaldırıldı, ondalıklı hesaplama ---
+            earn = user['eggs_balance'] * 0.10
+            
+            # --- DÜZELTME 2: Veritabanına ondalıklı kaydediyoruz ---
             c.execute("UPDATE users SET eggs_balance=0, gold=gold+? WHERE user_id=?", (earn, user_id))
             conn.commit()
-            bot.send_message(user_id, f"✅ Satış Başarılı!\nKazanılan: **{earn} Altın**", parse_mode="Markdown", reply_markup=main_menu_keyboard())
+            
+            # --- DÜZELTME 3: Mesajda :.2f ile virgülden sonra 2 hane gösteriyoruz ---
+            bot.send_message(user_id, f"✅ Satış Başarılı!\nKazanılan: **{earn:.2f} Altın**", parse_mode="Markdown", reply_markup=main_menu_keyboard())
             
             # SATIŞ -> YEDEK AL
             backup_to_cloud()
@@ -943,6 +947,7 @@ if __name__ == "__main__":
         except Exception as e:
             print(f"Hata: {e}")
             time.sleep(5)
+
 
 
 
