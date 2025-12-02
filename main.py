@@ -486,6 +486,44 @@ def duyuru_gonder(message):
     # 5. Rapor ver
     bot.edit_message_text(f"✅ **İşlem Tamamlandı!**\n\n📨 Gönderilen: {basarili}\n❌ İletilemeyen: {basarisiz} (Botu engellemiş olabilirler)", chat_id=message.chat.id, message_id=bilgi_mesaji.message_id)
 
+# --- ADMİN GÜNLÜK GÖREV SIFIRLAMA KOMUTU ---
+@bot.message_handler(commands=['yenigun'])
+def gunu_sifirla(message):
+    # Sadece Admin (Sen) kullanabilirsin
+    if message.from_user.id != ADMIN_ID:
+        return
+
+    try:
+        conn = get_db_connection()
+        c = conn.cursor()
+        
+        # 1. Bugünün tarihini al (Türkiye Saati)
+        tr_now = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(hours=3)
+        today = tr_now.date().isoformat()
+        
+        # 2. Tüm kullanıcıların (veya sadece senin) maskelerini "00000" yap
+        # Eğer sadece kendine yapmak istersen WHERE user_id = ADMIN_ID ekle
+        # Ama genelde herkesin sıfırlanması iyidir (Hata varsa herkes için vardır)
+        
+        c.execute("""
+            UPDATE users 
+            SET prayed_mask = '00000', 
+                tasks_mask = '00000', 
+                last_prayer_date = ?, 
+                last_task_date = ?
+        """, (today, today))
+        
+        conn.commit()
+        conn.close()
+        
+        bot.reply_to(message, "✅ **Yeni Gün Başlatıldı!**\n\nHerkesin görevleri ve namazları sıfırlandı. Tarih bugüne (Türkiye saati) eşitlendi.", parse_mode="Markdown")
+        
+        # Buluta yedekle
+        backup_to_cloud()
+
+    except Exception as e:
+        bot.reply_to(message, f"❌ Hata: {e}")
+
 # --- ADMİN VERİ DEĞİŞTİRME KOMUTU (/set) ---
 @bot.message_handler(commands=['set'])
 def veri_degistir(message):
@@ -1152,6 +1190,7 @@ if __name__ == "__main__":
         except Exception as e:
             print(f"Hata: {e}")
             time.sleep(5)
+
 
 
 
