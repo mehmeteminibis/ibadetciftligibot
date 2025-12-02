@@ -442,6 +442,73 @@ def duyuru_gonder(message):
     # 5. Rapor ver
     bot.edit_message_text(f"✅ **İşlem Tamamlandı!**\n\n📨 Gönderilen: {basarili}\n❌ İletilemeyen: {basarisiz} (Botu engellemiş olabilirler)", chat_id=message.chat.id, message_id=bilgi_mesaji.message_id)
 
+# --- ADMİN VERİ DEĞİŞTİRME KOMUTU (/set) ---
+@bot.message_handler(commands=['set'])
+def veri_degistir(message):
+    # 1. Sadece Admin (Sen) kullanabilirsin
+    if message.from_user.id != ADMIN_ID:
+        return
+
+    try:
+        # Komutu parçala: /set ben yumurta 500
+        args = message.text.split()
+        
+        # Eğer eksik yazarsan uyarı ver
+        if len(args) != 4:
+            bot.reply_to(message, "⚠️ Hatalı kullanım!\nFormat: `/set [ID veya ben] [tür] [miktar]`\n\nTürler: altin, yem, yumurta, puan, tavuk", parse_mode="Markdown")
+            return
+
+        target_input = args[1]       # "ben" veya ID
+        data_type = args[2].lower()  # "yumurta", "altin" vb.
+        new_value = int(args[3])     # Yeni miktar (Örn: 500)
+
+        # "ben" yazdıysan kendi ID'ni otomatik al
+        if target_input == "ben":
+            target_id = message.from_user.id
+        else:
+            target_id = int(target_input)
+
+        # Türkçe kelimeleri Veritabanı sütunlarına eşleştiriyoruz
+        column_map = {
+            "altin": "gold",
+            "yem": "feed",
+            "yumurta": "eggs_balance", # Cüzdandaki yumurta
+            "puan": "eggs_score",      # Sıralama puanı
+            "tavuk": "hens"
+        }
+
+        if data_type not in column_map:
+            bot.reply_to(message, "⚠️ Geçersiz tür! Şunları kullanabilirsin: altin, yem, yumurta, puan, tavuk")
+            return
+
+        db_column = column_map[data_type]
+
+        conn = get_db_connection()
+        c = conn.cursor()
+        
+        # Kullanıcıyı bul ve güncelle
+        user = c.execute("SELECT * FROM users WHERE user_id=?", (target_id,)).fetchone()
+        
+        if user:
+            # Veriyi değiştiriyoruz
+            sql = f"UPDATE users SET {db_column} = ? WHERE user_id = ?"
+            c.execute(sql, (new_value, target_id))
+            conn.commit()
+            
+            bot.reply_to(message, f"✅ **Veri Güncellendi!**\n👤 ID: `{target_id}`\n📝 {data_type.capitalize()}: **{new_value}** yapıldı.", parse_mode="Markdown")
+            
+            # Değişikliği buluta yedekle
+            backup_to_cloud()
+        else:
+            bot.reply_to(message, "⚠️ Kullanıcı bulunamadı.")
+            
+        conn.close()
+
+    except Exception as e:
+        bot.reply_to(message, f"❌ Hata: {e}")
+
+
+# --- START (HOŞGELDİN) MESAJI ---
 @bot.message_handler(commands=['start'])
 def send_welcome(message):
     user_id = message.from_user.id
@@ -457,6 +524,7 @@ def send_welcome(message):
 
     conn = get_db_connection()
     c = conn.cursor()
+    # ... (Kodun devamı senin dosyanın aynısı olarak devam etmeli) ...
     user = c.execute("SELECT * FROM users WHERE user_id=?", (user_id,)).fetchone()
     
     if not user:
@@ -1005,6 +1073,7 @@ if __name__ == "__main__":
         except Exception as e:
             print(f"Hata: {e}")
             time.sleep(5)
+
 
 
 
