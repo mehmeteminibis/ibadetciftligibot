@@ -793,16 +793,31 @@ def handle_menus(message):
     elif text == "🏪 Civciv Pazarı" or text == "🛒 Civciv Pazarı":
         update_user_state(user_id, 'market')
         conn = get_db_connection()
-        user = conn.execute("SELECT gold, hens FROM users WHERE user_id=?", (user_id,)).fetchone()
         c = conn.cursor()
+        
+        # 1. Kullanıcı verilerini çek (Altın ve Tavuk Sayısı)
+        user = c.execute("SELECT gold, hens FROM users WHERE user_id=?", (user_id,)).fetchone()
+        
+        # 2. Civciv Sayısını çek
         chick_count = c.execute("SELECT COUNT(*) FROM chickens WHERE user_id=?", (user_id,)).fetchone()[0]
+        
+        # 3. FİYAT HESAPLAMA (Mesajda doğru yazması için)
+        toplam_hayvan = chick_count + user['hens']
+        
+        if toplam_hayvan < 2:
+            guncel_fiyat = 50
+        else:
+            guncel_fiyat = 50 + ((toplam_hayvan - 1) * 20)
+            
         conn.close()
         
+        # 4. Mesaj metninde artık {guncel_fiyat} değişkenini kullanıyoruz
         info = (f"🏪 **CİVCİV PAZARI**\n"
-                f"💰 Bakiye: **{user['gold']} Altın**\n"
+                f"💰 Bakiye: **{user['gold']:.2f} Altın**\n"
                 f"🐣 Civciv Sayısı: **{chick_count}/8**\n"
                 f"🐓 Tavuk Sayısı: **{user['hens']}**\n\n"
-                f"Bir renk seç ve satın al (50 Altın):")
+                f"Bir renk seç ve satın al ({guncel_fiyat} Altın):")
+        
         bot.send_message(user_id, info, parse_mode="Markdown", reply_markup=civciv_pazar_keyboard(user_id))
 
     # DÜZELTME: Artık "50 Altın" diye aramıyoruz, çünkü fiyat değişiyor.
@@ -1131,6 +1146,7 @@ if __name__ == "__main__":
         except Exception as e:
             print(f"Hata: {e}")
             time.sleep(5)
+
 
 
 
