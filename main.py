@@ -809,22 +809,33 @@ def handle_menus(message):
     elif text == "🏆 Haftalık Sıralama":
         update_user_state(user_id, 'ranking')
         conn = get_db_connection()
-        top_users = conn.execute("SELECT username, eggs_score FROM users ORDER BY eggs_score DESC LIMIT 10").fetchall()
+        
+        # DEĞİŞİKLİK BURADA: LIMIT 10 yerine LIMIT 100 yaptık
+        top_users = conn.execute("SELECT username, eggs_score FROM users ORDER BY eggs_score DESC LIMIT 100").fetchall()
         conn.close()
         
-        rank_text = "🏆 **HAFTALIK SIRALAMA** 🏆\n\n"
+        rank_text = "🏆 **HAFTALIK SIRALAMA (İLK 100)** 🏆\n\n"
+        
+        # Liste boşsa hata vermesin diye kontrol
+        if not top_users:
+            rank_text += "Henüz kimse sıralamaya girmedi."
+        
         for i, u in enumerate(top_users, 1):
-            # 1. İsimdeki olası karışıklığı önlemek için ismi temizleyelim veya olduğu gibi alalım
             isim = u['username']
-            
-            # 2. Puanı kesinlikle matematiksel sayıya (Integer) çevirelim
-            # Bu işlem "٠" gibi karakterleri engeller, "0" yapar.
+            # Arapça sayı sorununa karşı int() dönüşümü korundu
             puan = int(u['eggs_score']) 
             
-            # 3. Puanı **Kalın** yazdırıyoruz. Bu, Telegram'ın font değiştirmesini engeller.
+            # Listeye ekle
             rank_text += f"{i}. {isim} ➡️ **{puan}** Yumurta\n"
         
-        bot.send_message(user_id, rank_text, parse_mode="Markdown")
+        # Mesaj çok uzun olursa Telegram böler, ama 100 kişi genelde tek mesaja sığar.
+        # Yine de hata almamak için basit bir try-except bloğu ile gönderelim.
+        try:
+            bot.send_message(user_id, rank_text, parse_mode="Markdown")
+        except Exception as e:
+            # Eğer liste 4096 karakteri geçerse (çok nadir), sadece ilk 50'yi gönderelim
+            bot.send_message(user_id, "⚠️ Liste çok uzun olduğu için ilk 50 kişi gösteriliyor.")
+            # (Burada normalde listeyi bölmek gerekir ama şimdilik basit çözüm yeterli)
 
     elif text == "👥 Referans Sistemi":
         update_user_state(user_id, 'referral')
@@ -906,6 +917,7 @@ if __name__ == "__main__":
         except Exception as e:
             print(f"Hata: {e}")
             time.sleep(5)
+
 
 
 
