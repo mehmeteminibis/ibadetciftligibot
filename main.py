@@ -528,12 +528,20 @@ def handle_menus(message):
         user = c.execute("SELECT * FROM users WHERE user_id=?", (user_id,)).fetchone()
         
         if user['eggs_balance'] >= amount:
-            earn = int(amount * 0.10)
-            if earn < 1: earn = 1
+            
+            # --- DEĞİŞİKLİK 1: int() komutunu kaldırdık ---
+            # Artık küsuratları silmez (11 * 0.10 = 1.1 olarak kalır)
+            earn = amount * 0.10
+            
+            # Güvenlik: 0'dan küçük olmasın
+            if earn < 0: earn = 0
             
             c.execute("UPDATE users SET eggs_balance=eggs_balance-?, gold=gold+? WHERE user_id=?", (amount, earn, user_id))
             conn.commit()
-            bot.send_message(user_id, f"✅ {amount} yumurta satıldı!\n💰 Kazanılan: **{earn} Altın**\n🥚 Kalan: {user['eggs_balance']-amount}", parse_mode="Markdown")
+            
+            # --- DEĞİŞİKLİK 2: Mesajda {earn:.2f} kullandık ---
+            # Bu sayede 1.1 sayısını "1.10" olarak gösterir
+            bot.send_message(user_id, f"✅ {amount} yumurta satıldı!\n💰 Kazanılan: **{earn:.2f} Altın**\n🥚 Kalan: {user['eggs_balance']-amount}", parse_mode="Markdown")
             
             # SATIŞ -> YEDEK AL
             backup_to_cloud()
@@ -935,6 +943,7 @@ if __name__ == "__main__":
         except Exception as e:
             print(f"Hata: {e}")
             time.sleep(5)
+
 
 
 
