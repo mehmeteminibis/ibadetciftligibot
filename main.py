@@ -438,7 +438,7 @@ def send_welcome(message):
                 f"🐮 **İbadet Çiftliği'ne Hoş Geldin!**\n"
                 f"Bu bot, hem ibadetlerini takip etmeni sağlayan hem de bu süreçte çiftliğini geliştirip civcivler besleyebileceğin eğlenceli ve manevi bir oyundur.\n\n"
                 f"Namazlarını kıl, zikirlerini çek, altınları topla ve en büyük yumurta üreticisi sen ol! 🏆\n\n"
-                f"Sistemi başlatmak için öncelikle **Şehir ve İlçe** bilgisini girmen gerekiyor.\n"
+                f"Konumuna göre namaz vakitlerini hesaplayabilmemiz için yalnızca **Şehir ve İlçe** bilgini yazar mısın?.\n"
                 f"Lütfen aralarında boşluk bırakarak yaz (Örn: İstanbul Fatih):"
             )
             msg = bot.send_message(message.chat.id, welcome_msg, parse_mode="Markdown", reply_markup=types.ReplyKeyboardRemove())
@@ -937,6 +937,7 @@ if __name__ == "__main__":
         except Exception as e:
             print(f"Hata: {e}")
             time.sleep(5)
+
 
 
 
