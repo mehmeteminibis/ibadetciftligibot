@@ -814,9 +814,17 @@ def handle_menus(message):
         
         rank_text = "🏆 **HAFTALIK SIRALAMA** 🏆\n\n"
         for i, u in enumerate(top_users, 1):
-            rank_text += f"{i}. {u['username']} ➡️ {u['eggs_score']} Yumurta\n"
+            # 1. İsimdeki olası karışıklığı önlemek için ismi temizleyelim veya olduğu gibi alalım
+            isim = u['username']
+            
+            # 2. Puanı kesinlikle matematiksel sayıya (Integer) çevirelim
+            # Bu işlem "٠" gibi karakterleri engeller, "0" yapar.
+            puan = int(u['eggs_score']) 
+            
+            # 3. Puanı **Kalın** yazdırıyoruz. Bu, Telegram'ın font değiştirmesini engeller.
+            rank_text += f"{i}. {isim} ➡️ **{puan}** Yumurta\n"
         
-        bot.send_message(user_id, rank_text)
+        bot.send_message(user_id, rank_text, parse_mode="Markdown")
 
     elif text == "👥 Referans Sistemi":
         update_user_state(user_id, 'referral')
@@ -898,6 +906,7 @@ if __name__ == "__main__":
         except Exception as e:
             print(f"Hata: {e}")
             time.sleep(5)
+
 
 
 
