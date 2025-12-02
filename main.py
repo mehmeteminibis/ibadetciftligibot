@@ -809,48 +809,46 @@ def handle_menus(message):
     elif text == "🏆 Haftalık Sıralama":
         update_user_state(user_id, 'ranking')
         conn = get_db_connection()
-        # İlk 100 kişiyi çekiyoruz
         top_users = conn.execute("SELECT username, eggs_score FROM users ORDER BY eggs_score DESC LIMIT 100").fetchall()
         conn.close()
         
-        # Başlık
         rank_text = "🏆 **HAFTALIK SIRALAMA (İLK 100)** 🏆\n\n"
         
         if not top_users:
             rank_text += "Henüz sıralama verisi yok."
         
-        # LİSTE OLUŞTURMA
+        # 🛡️ GÖRÜNMEZ KALKAN (LTR İşareti)
+        # Bu, sayıları Arapça etkisinden korur.
+        LTR = "\u200E" 
+        
         for i, u in enumerate(top_users, 1):
             isim = u['username']
             if not isim: isim = "Misafir"
             
-            # 1. İSMİ TEMİZLE VE KISALT
-            # Alt satıra geçmeyi engelle ve ismi 12 harf ile sınırla
-            temiz_isim = isim.replace("\n", "")[:12]
+            # 1. İsim Temizliği (Satır kaymasını ve emoji taşmasını önler)
+            temiz_isim = isim.replace("\n", "").replace("`", "")[:12]
             
-            # 2. HİZALAMA (Sihirli Kısım)
-            # İsmin sağına nokta koyarak toplam 15 karaktere tamamlar.
-            # Böylece isim kısa da olsa uzun da olsa tablo kaymaz.
-            # Örnek: "Ahmet.........."
-            hizali_isim = temiz_isim.ljust(15, '.')
-            
-            # 3. PUANI MATEMATİKSEL SAYI YAP
+            # 2. PUANI AL
             puan = int(u['eggs_score'])
             
-            # 4. SATIRI KOD BLOĞU İÇİNE AL (`...`)
-            # Başındaki ve sonundaki ` işaretleri sayesinde:
-            # - Telefon Arapça olsa bile satır SOLDAN başlar.
-            # - Sayılar (0, 1, 2) ASLA Arapça rakama dönüşmez.
-            row = f"`{i:02d}. {hizali_isim}: {puan}`"
+            # 3. HİZALAMA (İsmi LTR kalkanları arasına alıyoruz)
+            # Böylece isimdeki Arapça harfler dışarı sızamaz.
+            guvenli_isim = f"{LTR}{temiz_isim}{LTR}"
+            
+            # 17 Karakterlik boşluğa yerleştir (Noktalarla)
+            hizali_isim = guvenli_isim.ljust(17, '.')
+            
+            # 4. SATIRI OLUŞTUR (KRİTİK NOKTA)
+            # Puanı da {LTR}{puan} şeklinde yazıyoruz.
+            # Bu sayede puan, önceki ismin Arapça etkisinden tamamen kurtulur.
+            row = f"`{LTR}{i:02d}. {hizali_isim}: {LTR}{puan}`"
             
             rank_text += row + "\n"
         
-        # Mesajı Gönder
         try:
             bot.send_message(user_id, rank_text, parse_mode="Markdown")
-        except Exception as e:
-            # Liste çok çok uzun olursa hata vermesin, ilk 50'yi atsın
-            kisa_liste = rank_text.split("\n")[:55] # Başlık dahil 55 satır
+        except:
+            kisa_liste = rank_text.split("\n")[:50]
             bot.send_message(user_id, "\n".join(kisa_liste), parse_mode="Markdown")
 
     elif text == "👥 Referans Sistemi":
@@ -937,6 +935,7 @@ if __name__ == "__main__":
         except Exception as e:
             print(f"Hata: {e}")
             time.sleep(5)
+
 
 
 
