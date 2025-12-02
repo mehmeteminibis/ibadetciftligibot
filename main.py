@@ -308,9 +308,47 @@ def gorev_menu_keyboard(user_id):
 def civciv_pazar_keyboard(user_id):
     conn = get_db_connection()
     c = conn.cursor()
+    
+    # 1. Mevcut Civcivleri ve Tavuk sayısını al
     user_chicks = c.execute("SELECT color_code FROM chickens WHERE user_id=?", (user_id,)).fetchall()
+    # Tavuk sayısını alıyoruz (Eğer yoksa 0 sayılır)
+    user_hens_row = c.execute("SELECT hens FROM users WHERE user_id=?", (user_id,)).fetchone()
+    user_hens = user_hens_row['hens'] if user_hens_row else 0
+    
+    # 2. Toplam Hayvan Sayısı (Fiyat buna göre artacak)
+    toplam_hayvan = len(user_chicks) + user_hens
+    
+    # 3. DİNAMİK FİYAT HESAPLAMA (Mantık: İlk 2 sabit, sonra artan)
+    if toplam_hayvan < 2:
+        guncel_fiyat = 50
+    else:
+        # Formül: 50 + ((Toplam - 1) * 20)
+        guncel_fiyat = 50 + ((toplam_hayvan - 1) * 20)
+
     owned_colors = [row['color_code'] for row in user_chicks]
     conn.close()
+    
+    markup = types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
+    row_btns = []
+    
+    # Butonları oluştur
+    for code, details in COLORS.items():
+        if code in owned_colors:
+            # Zaten varsa "Var" yaz
+            btn_text = f"✅ {details['name']} (Var)"
+        else:
+            # Yoksa hesapladığımız GÜNCEL FİYATI yaz
+            btn_text = f"{details['emoji']} {details['name']} ({guncel_fiyat} Altın)"
+        row_btns.append(btn_text)
+        
+    for i in range(0, len(row_btns), 2):
+        if i+1 < len(row_btns):
+            markup.add(row_btns[i], row_btns[i+1])
+        else:
+            markup.add(row_btns[i])
+            
+    markup.add("🔙 Ana Menüye Dön")
+    return markup
     
     markup = types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
     row_btns = []
@@ -1093,6 +1131,7 @@ if __name__ == "__main__":
         except Exception as e:
             print(f"Hata: {e}")
             time.sleep(5)
+
 
 
 
