@@ -805,7 +805,7 @@ def handle_menus(message):
         text_msg = (
             f"👤 **Çiftçi:** {user['username']}\n"
             f"📍 **Konum:** {user['city']} / {user['district']}\n"
-            f"💰 **Altın Miktarı:** {user['gold']}\n"
+            f"💰 **Altın Miktarı:** {user['gold']:.2f}\n"
             f"🐛 **Yem Miktarı:** {user['feed']}\n"
             f"🐥 **Civciv Sayısı:** {civciv_sayisi}/8\n"
             f"🐓 **Tavuk Sayısı:** {user['hens']}\n"
@@ -947,6 +947,7 @@ if __name__ == "__main__":
         except Exception as e:
             print(f"Hata: {e}")
             time.sleep(5)
+
 
 
 
