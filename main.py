@@ -876,9 +876,11 @@ def process_task_confirmation(message, task_id):
 # --- ZAMANLAYICIYI BAŞLAT ---
 def start_scheduler():
     scheduler = BackgroundScheduler()
-    scheduler.add_job(scheduled_prayer_check, 'interval', minutes=15)
     
-    # 15 dakikada bir otomatik yedekle
+    # DÜZELTME: Namaz vaktini kaçırmamak için her 1 dakikada bir kontrol etmeli
+    scheduler.add_job(scheduled_prayer_check, 'interval', minutes=1)
+    
+    # Yedekleme 15 dakikada bir olabilir, bu sistemi yormaz
     scheduler.add_job(backup_to_cloud, 'interval', minutes=15)
     
     def reset_weekly():
@@ -890,7 +892,9 @@ def start_scheduler():
             print("Haftalık sıralama sıfırlandı.")
             backup_to_cloud()
             
+    # Haftalık sıfırlama (Pazar 23:59)
     scheduler.add_job(reset_weekly, 'cron', day_of_week='sun', hour=23, minute=59)
+    
     scheduler.start()
 
 if __name__ == "__main__":
@@ -917,6 +921,7 @@ if __name__ == "__main__":
         except Exception as e:
             print(f"Hata: {e}")
             time.sleep(5)
+
 
 
 
