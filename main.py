@@ -11,7 +11,17 @@ from threading import Thread
 import os
 
 # --- AYARLAR ---
-BOT_TOKEN = "8329709843:AAHiIyYpEWz6Bl8IzzRvdbVpnMIoA3wogMQ"
+
+# ❌ ESKİ GÜVENSİZ YÖNTEMİ SİL:
+# BOT_TOKEN = "123456:ABC-DEF......"  <-- BU SATIRI SİL
+
+# ✅ YENİ GÜVENLİ YÖNTEM:
+# Bu kod, şifreyi kodun içinden değil, Render'ın ayarlarından (Environment) çeker.
+# Böylece kodun içinde şifre görünmez.
+BOT_TOKEN = os.environ.get("BOT_TOKEN")
+
+if not BOT_TOKEN:
+    print("HATA: Bot Token bulunamadı! Environment variables kontrol et.")
 BOT_USERNAME = "ibadetciftligi_bot" 
 # Threaded=False veritabanı kilitlenmesini önler
 bot = telebot.TeleBot(BOT_TOKEN, threaded=False)
@@ -19,8 +29,25 @@ DB_NAME = "ibadet_ciftligi.db"
 
 # --- JSONBIN AYARLARI (YEDEKLEME İÇİN) ---
 # JsonBin.io'dan aldığın kodları buraya yapıştır:
-JSONBIN_MASTER_KEY = "$2a$10$omG4QT.h/MV6wz5WTmZFsu/sL7j82fX8Sh64yr9xgK2ZYH/Pgw622" 
-JSONBIN_BIN_ID = "692dfc3f43b1c97be9d14abb"
+# 🛠️ GÜVENLİ HALE GETİRİLEN KISIM 🛠️
+
+# Kodun içindeki açık şifreleri siliyoruz, os.environ.get kullanıyoruz.
+
+JSONBIN_MASTER_KEY = os.environ.get("JSONBIN_MASTER_KEY")
+
+JSONBIN_BIN_ID = os.environ.get("JSONBIN_BIN_ID")
+
+
+
+# Eğer Render'a eklemeyi unuttuysan hata versin ki fark et.
+
+if not JSONBIN_MASTER_KEY or not JSONBIN_BIN_ID:
+
+    print("⚠️ UYARI: JsonBin anahtarları bulunamadı! Veritabanı yedeği alınamaz.")
+
+
+
+# ... (Kodun geri kalanı aynı devam eder) ...
 
 # --- FLASK SUNUCUSU (RENDER İÇİN) ---
 app = Flask('')
@@ -1305,6 +1332,7 @@ if __name__ == "__main__":
         except Exception as e:
             print(f"Hata: {e}")
             time.sleep(5)
+
 
 
 
