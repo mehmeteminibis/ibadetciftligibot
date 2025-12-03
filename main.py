@@ -642,6 +642,36 @@ def veri_degistir(message):
     except Exception as e:
         bot.reply_to(message, f"❌ Hata: {e}")
 
+# --- KİŞİYE ÖZEL MESAJ (DM) KOMUTU ---
+@bot.message_handler(commands=['dm', 'ozel'])
+def ozel_mesaj_gonder(message):
+    # 1. Sadece Admin (Sen) kullanabilirsin
+    if message.from_user.id != ADMIN_ID:
+        return
+
+    try:
+        # Mesajı 3 parçaya bölüyoruz: Komut, ID, Mesajın geri kalanı
+        # maxsplit=2 demek: İlk boşluktan ve ikinci boşluktan böl, gerisini bütün tut.
+        args = message.text.split(maxsplit=2)
+        
+        if len(args) < 3:
+            bot.reply_to(message, "⚠️ Hatalı kullanım!\nFormat: `/dm [KullanıcıID] [Mesajınız]`\nÖrnek: `/dm 12345678 Tebrikler kazandınız!`", parse_mode="Markdown")
+            return
+
+        target_id = args[1]
+        text_content = args[2]
+
+        # 2. Mesajı Gönderiyoruz
+        # Kullanıcıya "YÖNETİCİ MESAJI" başlığıyla gidiyor ki botun otomatiği sanmasın.
+        gonderilecek_metin = f"📩 **YÖNETİCİDEN MESAJ**\n\n{text_content}"
+        
+        bot.send_message(target_id, gonderilecek_metin, parse_mode="Markdown")
+        
+        # 3. Sana Onay Veriyoruz
+        bot.reply_to(message, f"✅ **Mesaj İletildi!**\n👤 Alıcı ID: `{target_id}`\n📝 Mesaj: {text_content}", parse_mode="Markdown")
+
+    except Exception as e:
+        bot.reply_to(message, f"❌ Mesaj gönderilemedi!\nSebep: Kullanıcı botu engellemiş olabilir veya ID yanlış.\nHata: {e}")
 
 # --- START (HOŞGELDİN) MESAJI ---
 @bot.message_handler(commands=['start'])
@@ -1275,6 +1305,7 @@ if __name__ == "__main__":
         except Exception as e:
             print(f"Hata: {e}")
             time.sleep(5)
+
 
 
 
