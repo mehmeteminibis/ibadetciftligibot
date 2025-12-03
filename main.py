@@ -663,7 +663,7 @@ def ozel_mesaj_gonder(message):
 
         # 2. Mesajı Gönderiyoruz
         # Kullanıcıya "YÖNETİCİ MESAJI" başlığıyla gidiyor ki botun otomatiği sanmasın.
-        gonderilecek_metin = f"📩 **YÖNETİCİDEN MESAJ**\n\n{text_content}"
+        gonderilecek_metin = f"📩 **DİKKAT**\n\n{text_content}"
         
         bot.send_message(target_id, gonderilecek_metin, parse_mode="Markdown")
         
@@ -1305,6 +1305,7 @@ if __name__ == "__main__":
         except Exception as e:
             print(f"Hata: {e}")
             time.sleep(5)
+
 
 
 
