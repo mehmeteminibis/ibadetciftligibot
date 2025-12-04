@@ -127,67 +127,46 @@ def init_db():
     conn.commit()
     conn.close()
 
-# --- YEDEKLEME SİSTEMİ (HATA AYIKLAMA MODU) ---
+# --- YEDEKLEME SİSTEMİ (HEM YEDEK HEM RAPOR) ---
 def backup_to_cloud():
-    print("🚀 Yedekleme İşlemi Başlatıldı...")
+    # print("🚀 Yedekleme İşlemi Başlatıldı...")
     try:
         conn = get_db_connection()
-        conn.row_factory = sqlite3.Row
+        conn.row_factory = sqlite3.Row 
         c = conn.cursor()
         
-        # Verileri hazırla
-        users_clean = [dict(row) for row in c.execute("SELECT * FROM users").fetchall()]
-        chickens_clean = [dict(row) for row in c.execute("SELECT * FROM chickens").fetchall()]
-        conn.close()
-
-        # JSON verisi
-        data = {
-            "metadata": {"tarih": time.strftime("%Y-%m-%d %H:%M:%S")},
-            "users": users_clean,
-            "chickens": chickens_clean
-        }
+        # 1. HAM VERİLERİ ÇEK
+        users_raw = c.execute("SELECT * FROM users").fetchall()
+        chickens_raw = c.execute("SELECT * FROM chickens").fetchall()
         
-        # ADRES VE ŞİFRELERİ KONTROL ET
-        url = f"https://api.jsonbin.io/v3/b/{JSONBIN_BIN_ID}"
-        headers = {
-            "Content-Type": "application/json",
-            "X-Master-Key": JSONBIN_MASTER_KEY
-        }
+        users_clean = [dict(row) for row in users_raw]
+        chickens_clean = [dict(row) for row in chickens_raw]
         
-        # --- KRİTİK NOKTA: Şifreler Dolu mu? ---
-        if not JSONBIN_BIN_ID or not JSONBIN_MASTER_KEY:
-            print("😱 HATA: Şifreler (Key/ID) BOŞ görünüyor! Kodun başını kontrol et.")
-            return
-
-        # GÖNDER VE CEVABI OKU
-        print(f"📡 JsonBin'e bağlanılıyor... (ID: {JSONBIN_BIN_ID})")
-        req = requests.put(url, json=data, headers=headers)
+        # 2. DETAYLI RAPOR HAZIRLA
+        # Kullanıcıları puana göre sırala
+        sorted_users = sorted(users_clean, key=lambda x: x['eggs_score'], reverse=True)
         
-        # SONUCU YAZDIR
-        if req.status_code == 200:
-            print("✅ BAŞARILI: Veriler Buluta Kaydedildi!")
-        else:
-            print(f"❌ BAŞARISIZ! Hata Kodu: {req.status_code}")
-            print(f"❌ JsonBin Cevabı: {req.text}")
+        rapor_listesi = []
+        
+        # DÖNGÜ BAŞLIYOR (Her kullanıcı için tek tek hesapla)
+        for index, u in enumerate(sorted_users, 1):
+            user_id = u['user_id']
             
-    except Exception as e:
-        print(f"⚠️ KOD HATASI: {e}")
-            
-            # Ekstra verileri hesapla
+            # --- HESAPLAMA KISMI (TRY BLOĞUNUN İÇİNDE OLMALI) ---
             civciv_sayisi = c.execute("SELECT COUNT(*) FROM chickens WHERE user_id=?", (user_id,)).fetchone()[0]
             referans_sayisi = c.execute("SELECT COUNT(*) FROM users WHERE referrer_id=?", (user_id,)).fetchone()[0]
+            # ----------------------------------------------------
             
-            # Türkçe ve Emojili Rapor Sözlüğü Oluştur
             oyuncu_karti = {
                 "Sıralama": index,
                 "👤 Oyuncu Adı": u['username'],
                 "🏆 Haftalık Puan": u['eggs_score'],
-                "🥚 Cüzdan (Satılabilir)": u['eggs_balance'],
-                "💰 Altın Miktarı": float(f"{u['gold']:.2f}"), # Küsuratlı düzgün göster
-                "🐛 Yem Miktarı": u['feed'],
-                "🐓 Tavuk Sayısı": u['hens'],
-                "🐥 Civciv Sayısı": civciv_sayisi,
-                "👥 Getirdiği Referans": referans_sayisi,
+                "🥚 Cüzdan": u['eggs_balance'],
+                "💰 Altın": float(f"{u['gold']:.2f}"),
+                "🐛 Yem": u['feed'],
+                "🐓 Tavuk": u['hens'],
+                "🐥 Civciv": civciv_sayisi,
+                "👥 Referans": referans_sayisi,
                 "📍 Konum": f"{u['city']} / {u['district']}",
                 "🆔 User ID": user_id
             }
@@ -195,17 +174,14 @@ def backup_to_cloud():
             
         conn.close()
 
-        # 3. İKİSİNİ BİRLEŞTİR VE GÖNDER
+        # 3. GÖNDER
         data = {
             "metadata": {
                 "yedekleme_zamani": time.strftime("%Y-%m-%d %H:%M:%S"),
                 "toplam_oyuncu": len(users_clean)
             },
-            # DİKKAT: Bot geri yüklerken burayı kullanacak (BOZMA)
             "users": users_clean, 
             "chickens": chickens_clean,
-            
-            # KEYİF: Sen açıp bakacağın zaman burayı okuyacaksın
             "DETAYLI_SIRALI_RAPOR": rapor_listesi
         }
         
@@ -214,11 +190,18 @@ def backup_to_cloud():
             "Content-Type": "application/json",
             "X-Master-Key": JSONBIN_MASTER_KEY
         }
-        requests.put(url, json=data, headers=headers)
-        # print("✅ Yedekleme ve Analiz Raporu Gönderildi.") 
+        
+        if not JSONBIN_BIN_ID or not JSONBIN_MASTER_KEY:
+            print("😱 HATA: Şifreler eksik!")
+            return
+
+        req = requests.put(url, json=data, headers=headers)
+        
+        if req.status_code != 200:
+             print(f"❌ JsonBin Hatası: {req.text}")
         
     except Exception as e:
-        print(f"Yedekleme Hatası: {e}")
+        print(f"⚠️ Yedekleme Fonksiyonu Hatası: {e}")
 
 def restore_from_cloud():
     """Bot açılınca Buluttaki veriyi çekip DB'ye yazar"""
@@ -1333,6 +1316,7 @@ if __name__ == "__main__":
         except Exception as e:
             print(f"Hata: {e}")
             time.sleep(5)
+
 
 
 
