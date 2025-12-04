@@ -692,6 +692,64 @@ def ozel_mesaj_gonder(message):
     except Exception as e:
         bot.reply_to(message, f"❌ Mesaj gönderilemedi!\nSebep: Kullanıcı botu engellemiş olabilir veya ID yanlış.\nHata: {e}")
 
+# --- ACİL DURUM VERİ YÜKLEME KOMUTU ---
+@bot.message_handler(commands=['yukle'])
+def zorla_yukle(message):
+    if message.from_user.id != ADMIN_ID: return
+    
+    bot.reply_to(message, "📥 Gist'ten veri çekilmeye çalışılıyor...")
+    
+    try:
+        url = f"https://api.github.com/gists/{GIST_ID}"
+        headers = {"Authorization": f"token {GITHUB_TOKEN}"}
+        
+        req = requests.get(url, headers=headers)
+        
+        if req.status_code != 200:
+            bot.reply_to(message, f"❌ Bağlantı Hatası! Kod: {req.status_code}\nCevap: {req.text}")
+            return
+
+        gist_data = req.json()
+        
+        # Dosya ismini kontrol et
+        if GIST_FILENAME not in gist_data['files']:
+            dosya_isimleri = list(gist_data['files'].keys())
+            bot.reply_to(message, f"❌ HATA: '{GIST_FILENAME}' dosyası bulunamadı!\nGist'teki dosya isimleri: {dosya_isimleri}\nLütfen Gist'e gidip dosya adını düzelt.")
+            return
+
+        file_content = gist_data['files'][GIST_FILENAME]['content']
+        data = json.loads(file_content)
+        
+        users = data.get("users", [])
+        chickens = data.get("chickens", [])
+        
+        conn = get_db_connection()
+        c = conn.cursor()
+        
+        # Veritabanını temizle ve yeniden yaz
+        c.execute("DELETE FROM users")
+        c.execute("DELETE FROM chickens")
+        
+        for u in users:
+            cols = ', '.join(u.keys())
+            placeholders = ', '.join('?' * len(u))
+            sql = f"INSERT INTO users ({cols}) VALUES ({placeholders})"
+            c.execute(sql, list(u.values()))
+            
+        for ch in chickens:
+            cols = ', '.join(ch.keys())
+            placeholders = ', '.join('?' * len(ch))
+            sql = f"INSERT INTO chickens ({cols}) VALUES ({placeholders})"
+            c.execute(sql, list(ch.values()))
+        
+        conn.commit()
+        conn.close()
+        
+        bot.reply_to(message, f"✅ **BAŞARILI!**\n\n👤 {len(users)} Oyuncu yüklendi.\n🐣 {len(chickens)} Civciv yüklendi.\n\nHemen /start yazıp kontrol et!")
+
+    except Exception as e:
+        bot.reply_to(message, f"❌ YÜKLEME HATASI:\n{e}")
+
 # --- START (HOŞGELDİN) MESAJI ---
 @bot.message_handler(commands=['start'])
 def send_welcome(message):
@@ -1362,6 +1420,7 @@ if __name__ == "__main__":
         except Exception as e:
             print(f"Polling Hatası: {e}")
             time.sleep(5)
+
 
 
 
