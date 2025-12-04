@@ -1280,11 +1280,7 @@ def process_task_confirmation(message, task_id):
 # --- ZAMANLAYICIYI BAŞLAT ---
 def start_scheduler():
     scheduler = BackgroundScheduler()
-    
-    # ❌ BU SATIR ARTIK OLMAMALI (SİLİNCEK):
-    # scheduler.add_job(scheduled_prayer_check, 'interval', minutes=1)
-    
-    # Sadece yedekleme kalsın (Bu sunucuyu yormaz)
+    # Yedekleme (15 dk)
     scheduler.add_job(backup_to_cloud, 'interval', minutes=15)
     
     # Haftalık Sıralama Sıfırlama
@@ -1300,10 +1296,9 @@ def start_scheduler():
     scheduler.add_job(reset_weekly, 'cron', day_of_week='sun', hour=23, minute=59)
     scheduler.start()
 
-if __name__ == "__main__":
-    init_db()
-    
-    def restore_from_cloud():
+# --- RESTORE (GERİ YÜKLEME) FONKSİYONU ---
+# (Bu fonksiyonu dışarı aldık, artık doğru yerde)
+def restore_from_cloud():
     """Bot açılınca GitHub Gist'ten veriyi çeker"""
     print("☁️ GitHub'dan veri çekiliyor...")
     try:
@@ -1312,11 +1307,9 @@ if __name__ == "__main__":
         
         req = requests.get(url, headers=headers)
         if req.status_code == 200:
-            # Gist yapısı farklıdır, önce dosya içeriğine ulaşmalıyız
             gist_data = req.json()
             file_content = gist_data['files'][GIST_FILENAME]['content']
             
-            # İçeriği tekrar JSON'a çevir
             data = json.loads(file_content)
             
             users = data.get("users", [])
@@ -1349,6 +1342,27 @@ if __name__ == "__main__":
             print("✅ Veriler GitHub'dan yüklendi.")
     except Exception as e:
         print(f"Restore Hatası: {e}")
+
+if __name__ == "__main__":
+    init_db()
+    restore_from_cloud() # Fonksiyonu burada çağırıyoruz
+    start_scheduler()
+    keep_alive() 
+    
+    try:
+        bot.remove_webhook()
+        time.sleep(1)
+    except: pass
+
+    print("Bot ve Web Server başlatıldı...")
+    
+    while True:
+        try:
+            bot.infinity_polling(timeout=60, long_polling_timeout=20, skip_pending=True)
+        except Exception as e:
+            print(f"Polling Hatası: {e}")
+            time.sleep(5)
+
 
 
 
