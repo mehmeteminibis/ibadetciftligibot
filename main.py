@@ -648,6 +648,24 @@ def veri_degistir(message):
     except Exception as e:
         bot.reply_to(message, f"❌ Hata: {e}")
 
+# --- MANUEL YEDEKLEME KOMUTU ---
+@bot.message_handler(commands=['yedekle'])
+def manuel_yedekle(message):
+    # Sadece Admin (Sen) kullanabilirsin
+    if message.from_user.id != ADMIN_ID:
+        return
+
+    bilgi_mesaji = bot.reply_to(message, "☁️ Buluta yedekleme başlatılıyor...")
+    
+    try:
+        # Yedekleme fonksiyonunu çağır
+        backup_to_cloud()
+        
+        # Başarılı olursa
+        bot.edit_message_text("✅ **Yedekleme Başarılı!**\nVeriler JsonBin.io üzerine kaydedildi.", chat_id=message.chat.id, message_id=bilgi_mesaji.message_id, parse_mode="Markdown")
+    except Exception as e:
+        bot.edit_message_text(f"❌ **Yedekleme Hatası!**\n\nHata: {e}", chat_id=message.chat.id, message_id=bilgi_mesaji.message_id, parse_mode="Markdown")
+
 # --- KİŞİYE ÖZEL MESAJ (DM) KOMUTU ---
 @bot.message_handler(commands=['dm', 'ozel'])
 def ozel_mesaj_gonder(message):
@@ -1311,6 +1329,7 @@ if __name__ == "__main__":
         except Exception as e:
             print(f"Hata: {e}")
             time.sleep(5)
+
 
 
 
