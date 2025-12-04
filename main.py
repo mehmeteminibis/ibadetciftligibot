@@ -24,10 +24,16 @@ BOT_USERNAME = "ibadetciftligi_bot"
 bot = telebot.TeleBot(BOT_TOKEN, threaded=False)
 DB_NAME = "ibadet_ciftligi.db"
 
-# --- GITHUB GIST AYARLARI (YENİ VE LİMİTSİZ) ---
-GITHUB_TOKEN = "BURAYA_ghp_İLE_BASLAYAN_KODU_YAPISTIR"
-GIST_ID = "BURAYA_URL_SONUNDAKI_GIST_ID_YAPISTIR"
-GIST_FILENAME = "yedek.json" # Gist oluştururken verdiğin dosya adı
+# --- GITHUB GIST AYARLARI ---
+# Şifreyi Render'dan gizlice çekiyoruz. Kodda görünmez!
+GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN")
+
+# Bu ID açık kalabilir, sorun değil.
+GIST_ID = "0dd9f6afec4431d87abb929a3e6a05e3" 
+GIST_FILENAME = "yedek.json"
+
+if not GITHUB_TOKEN:
+    print("⚠️ HATA: GitHub Token bulunamadı! Render Environment ayarlarına ekledin mi?")
 
 # ----------------------------------------
 
@@ -1297,27 +1303,53 @@ def start_scheduler():
 if __name__ == "__main__":
     init_db()
     
-    # 1. BOT AÇILIRKEN BULUTTAN VERİYİ ÇEK (RESTORE)
-    restore_from_cloud()
-    
-    start_scheduler()
-    keep_alive() # Flask sunucusu başlatıldı
-    
-    # Webhook temizliği (409 hatası için)
+    def restore_from_cloud():
+    """Bot açılınca GitHub Gist'ten veriyi çeker"""
+    print("☁️ GitHub'dan veri çekiliyor...")
     try:
-        bot.remove_webhook()
-        time.sleep(1)
-    except:
-        pass
+        url = f"https://api.github.com/gists/{GIST_ID}"
+        headers = {"Authorization": f"token {GITHUB_TOKEN}"}
+        
+        req = requests.get(url, headers=headers)
+        if req.status_code == 200:
+            # Gist yapısı farklıdır, önce dosya içeriğine ulaşmalıyız
+            gist_data = req.json()
+            file_content = gist_data['files'][GIST_FILENAME]['content']
+            
+            # İçeriği tekrar JSON'a çevir
+            data = json.loads(file_content)
+            
+            users = data.get("users", [])
+            chickens = data.get("chickens", [])
+            
+            if not users and not chickens:
+                print("⚠️ Gist boş.")
+                return
 
-    print("Bot ve Web Server başlatıldı...")
-    
-    while True:
-        try:
-            bot.infinity_polling(timeout=60, long_polling_timeout=20, skip_pending=True)
-        except Exception as e:
-            print(f"Hata: {e}")
-            time.sleep(5)
+            conn = get_db_connection()
+            c = conn.cursor()
+            
+            c.execute("DELETE FROM users")
+            c.execute("DELETE FROM chickens")
+            
+            for u in users:
+                cols = ', '.join(u.keys())
+                placeholders = ', '.join('?' * len(u))
+                sql = f"INSERT INTO users ({cols}) VALUES ({placeholders})"
+                c.execute(sql, list(u.values()))
+                
+            for ch in chickens:
+                cols = ', '.join(ch.keys())
+                placeholders = ', '.join('?' * len(ch))
+                sql = f"INSERT INTO chickens ({cols}) VALUES ({placeholders})"
+                c.execute(sql, list(ch.values()))
+            
+            conn.commit()
+            conn.close()
+            print("✅ Veriler GitHub'dan yüklendi.")
+    except Exception as e:
+        print(f"Restore Hatası: {e}")
+
 
 
 
