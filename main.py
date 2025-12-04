@@ -491,36 +491,15 @@ def get_prayer_times_from_api(city, district):
                 "Akşam": timings['Maghrib'],
                 "Yatsı": timings['Isha']
             }
-    except Exception as e:
-        print(f"API Hatası: {e}")
-    return None
+    except:
+        return None
 
 def scheduled_prayer_check():
-    try:
-        conn = get_db_connection()
-        c = conn.cursor()
-        users = c.execute("SELECT user_id, city, district FROM users WHERE city IS NOT NULL").fetchall()
-        
-        # 🛠️ DEĞİŞİKLİK BURADA YAPILDI 🛠️
-        # Sunucu saati (UTC) yerine Türkiye saatini (UTC+3) hesaplıyoruz
-        # utcnow() yerine now(datetime.timezone.utc) kullanıyoruz
-        turkiye_saati = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(hours=3)
-        current_time_str = turkiye_saati.strftime("%H:%M")
-        
-        for user in users:
-            times = get_prayer_times_from_api(user['city'], user['district'])
-            if times:
-                for vakit_adi, vakit_saati in times.items():
-                    # API'den gelen saat ile Türkiye saati eşleşiyor mu?
-                    if vakit_saati == current_time_str:
-                        try:
-                            msg = f"📢 **Ezan Vakti!**\n\n📍 {user['city']}/{user['district']} için **{vakit_adi}** vakti girdi.\n\nNamazını kıldıktan sonra 'Namaz Takibi' menüsünden işaretlemeyi unutma! +10 Altın seni bekliyor. 🕌"
-                            bot.send_message(user['user_id'], msg, parse_mode="Markdown")
-                        except:
-                            pass
-        conn.close()
-    except:
-        pass
+    # 🛠️ GÜVENLİK DUVARI 🛠️
+    # API şu an sunucumuzu engellediği için (Network Hatası)
+    # bu fonksiyonu boş bırakıyoruz. 
+    # Böylece bot hata almadan çalışmaya devam edecek.
+    return
 
 ADMIN_ID = 1120730573  # BURAYA KENDİ ID'Nİ YAZ!
 
@@ -1332,6 +1311,7 @@ if __name__ == "__main__":
         except Exception as e:
             print(f"Hata: {e}")
             time.sleep(5)
+
 
 
 
