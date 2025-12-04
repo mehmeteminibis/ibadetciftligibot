@@ -127,33 +127,51 @@ def init_db():
     conn.commit()
     conn.close()
 
-# --- YEDEKLEME SİSTEMİ (HEM YEDEK HEM RAPOR) ---
+# --- YEDEKLEME SİSTEMİ (HATA AYIKLAMA MODU) ---
 def backup_to_cloud():
-    """
-    1. Bot için ham veriyi yedekler (sistem_yedegi)
-    2. Senin okuman için detaylı Türkçe rapor hazırlar (okunabilir_rapor)
-    """
+    print("🚀 Yedekleme İşlemi Başlatıldı...")
     try:
         conn = get_db_connection()
-        conn.row_factory = sqlite3.Row # Sütun isimleriyle erişim için
+        conn.row_factory = sqlite3.Row
         c = conn.cursor()
         
-        # 1. HAM VERİLERİ ÇEK (Sistemin geri yüklemesi için lazım)
-        users_raw = c.execute("SELECT * FROM users").fetchall()
-        chickens_raw = c.execute("SELECT * FROM chickens").fetchall()
+        # Verileri hazırla
+        users_clean = [dict(row) for row in c.execute("SELECT * FROM users").fetchall()]
+        chickens_clean = [dict(row) for row in c.execute("SELECT * FROM chickens").fetchall()]
+        conn.close()
+
+        # JSON verisi
+        data = {
+            "metadata": {"tarih": time.strftime("%Y-%m-%d %H:%M:%S")},
+            "users": users_clean,
+            "chickens": chickens_clean
+        }
         
-        # Row nesnelerini dict'e çevir (Ham Yedek İçin)
-        users_clean = [dict(row) for row in users_raw]
-        chickens_clean = [dict(row) for row in chickens_raw]
+        # ADRES VE ŞİFRELERİ KONTROL ET
+        url = f"https://api.jsonbin.io/v3/b/{JSONBIN_BIN_ID}"
+        headers = {
+            "Content-Type": "application/json",
+            "X-Master-Key": JSONBIN_MASTER_KEY
+        }
         
-        # 2. DETAYLI RAPOR HAZIRLA (Senin okuman için)
-        # Kullanıcıları puana göre sırala (Yüksekten düşüğe)
-        sorted_users = sorted(users_clean, key=lambda x: x['eggs_score'], reverse=True)
+        # --- KRİTİK NOKTA: Şifreler Dolu mu? ---
+        if not JSONBIN_BIN_ID or not JSONBIN_MASTER_KEY:
+            print("😱 HATA: Şifreler (Key/ID) BOŞ görünüyor! Kodun başını kontrol et.")
+            return
+
+        # GÖNDER VE CEVABI OKU
+        print(f"📡 JsonBin'e bağlanılıyor... (ID: {JSONBIN_BIN_ID})")
+        req = requests.put(url, json=data, headers=headers)
         
-        rapor_listesi = []
-        
-        for index, u in enumerate(sorted_users, 1):
-            user_id = u['user_id']
+        # SONUCU YAZDIR
+        if req.status_code == 200:
+            print("✅ BAŞARILI: Veriler Buluta Kaydedildi!")
+        else:
+            print(f"❌ BAŞARISIZ! Hata Kodu: {req.status_code}")
+            print(f"❌ JsonBin Cevabı: {req.text}")
+            
+    except Exception as e:
+        print(f"⚠️ KOD HATASI: {e}")
             
             # Ekstra verileri hesapla
             civciv_sayisi = c.execute("SELECT COUNT(*) FROM chickens WHERE user_id=?", (user_id,)).fetchone()[0]
@@ -1315,6 +1333,7 @@ if __name__ == "__main__":
         except Exception as e:
             print(f"Hata: {e}")
             time.sleep(5)
+
 
 
 
