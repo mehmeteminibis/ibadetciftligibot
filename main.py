@@ -24,12 +24,10 @@ BOT_USERNAME = "ibadetciftligi_bot"
 bot = telebot.TeleBot(BOT_TOKEN, threaded=False)
 DB_NAME = "ibadet_ciftligi.db"
 
-# --- JSONBIN AYARLARI (MANUEL GİRİŞ) ---
-# Şifreleri buraya açık açık yazıyoruz.
-# Böylece Render ayarlarında hata olsa bile kodun içinde olduğu için kesin çalışır.
-
-JSONBIN_MASTER_KEY = "$2a$10$omG4QT.h/MV6wz5WTmZFsu/sL7j82fX8Sh64yr9xgK2ZYH/Pgw622" 
-JSONBIN_BIN_ID = "692dfc3f43b1c97be9d14abb"
+# --- GITHUB GIST AYARLARI (YENİ VE LİMİTSİZ) ---
+GITHUB_TOKEN = "BURAYA_ghp_İLE_BASLAYAN_KODU_YAPISTIR"
+GIST_ID = "BURAYA_URL_SONUNDAKI_GIST_ID_YAPISTIR"
+GIST_FILENAME = "yedek.json" # Gist oluştururken verdiğin dosya adı
 
 # ----------------------------------------
 
@@ -127,9 +125,9 @@ def init_db():
     conn.commit()
     conn.close()
 
-# --- YEDEKLEME SİSTEMİ (HEM YEDEK HEM RAPOR) ---
+# --- YEDEKLEME SİSTEMİ (GITHUB GIST - DETAYLI & LİMİTSİZ) ---
 def backup_to_cloud():
-    # print("🚀 Yedekleme İşlemi Başlatıldı...")
+    # print("🚀 GitHub'a Yedekleme Başlatılıyor...")
     try:
         conn = get_db_connection()
         conn.row_factory = sqlite3.Row 
@@ -142,21 +140,18 @@ def backup_to_cloud():
         users_clean = [dict(row) for row in users_raw]
         chickens_clean = [dict(row) for row in chickens_raw]
         
-        # 2. DETAYLI RAPOR HAZIRLA
-        # Kullanıcıları puana göre sırala
+        # 2. DETAYLI VE SÜSLÜ RAPOR HAZIRLA
         sorted_users = sorted(users_clean, key=lambda x: x['eggs_score'], reverse=True)
-        
         rapor_listesi = []
         
-        # DÖNGÜ BAŞLIYOR (Her kullanıcı için tek tek hesapla)
         for index, u in enumerate(sorted_users, 1):
             user_id = u['user_id']
             
-            # --- HESAPLAMA KISMI (TRY BLOĞUNUN İÇİNDE OLMALI) ---
+            # Ekstra verileri hesapla
             civciv_sayisi = c.execute("SELECT COUNT(*) FROM chickens WHERE user_id=?", (user_id,)).fetchone()[0]
             referans_sayisi = c.execute("SELECT COUNT(*) FROM users WHERE referrer_id=?", (user_id,)).fetchone()[0]
-            # ----------------------------------------------------
             
+            # Oyuncu Kartı
             oyuncu_karti = {
                 "Sıralama": index,
                 "👤 Oyuncu Adı": u['username'],
@@ -174,8 +169,8 @@ def backup_to_cloud():
             
         conn.close()
 
-        # 3. GÖNDER
-        data = {
+        # 3. VERİYİ PAKETLE
+        full_data = {
             "metadata": {
                 "yedekleme_zamani": time.strftime("%Y-%m-%d %H:%M:%S"),
                 "toplam_oyuncu": len(users_clean)
@@ -185,42 +180,49 @@ def backup_to_cloud():
             "DETAYLI_SIRALI_RAPOR": rapor_listesi
         }
         
-        url = f"https://api.jsonbin.io/v3/b/{JSONBIN_BIN_ID}"
+        # 4. GITHUB'A GÖNDER
+        # Ayarlar kısmına GITHUB_TOKEN ve GIST_ID eklediğinden emin ol!
+        url = f"https://api.github.com/gists/{GIST_ID}"
         headers = {
-            "Content-Type": "application/json",
-            "X-Master-Key": JSONBIN_MASTER_KEY
+            "Authorization": f"token {GITHUB_TOKEN}",
+            "Accept": "application/vnd.github.v3+json"
         }
         
-        if not JSONBIN_BIN_ID or not JSONBIN_MASTER_KEY:
-            print("😱 HATA: Şifreler eksik!")
-            return
-
-        req = requests.put(url, json=data, headers=headers)
+        payload = {
+            "files": {
+                GIST_FILENAME: {
+                    "content": json.dumps(full_data, indent=4, ensure_ascii=False)
+                }
+            }
+        }
+        
+        req = requests.patch(url, json=payload, headers=headers)
         
         if req.status_code != 200:
-             print(f"❌ JsonBin Hatası: {req.text}")
+             print(f"❌ GitHub Hatası: {req.text}")
         
     except Exception as e:
         print(f"⚠️ Yedekleme Fonksiyonu Hatası: {e}")
 
 def restore_from_cloud():
-    """Bot açılınca Buluttaki veriyi çekip DB'ye yazar"""
-    print("☁️ Buluttan veri çekiliyor...")
+    """Bot açılınca GitHub Gist'ten veriyi çeker"""
+    print("☁️ GitHub'dan veri çekiliyor...")
     try:
-        url = f"https://api.jsonbin.io/v3/b/{JSONBIN_BIN_ID}/latest"
-        headers = {"X-Master-Key": JSONBIN_MASTER_KEY}
+        url = f"https://api.github.com/gists/{GIST_ID}"
+        headers = {"Authorization": f"token {GITHUB_TOKEN}"}
         
         req = requests.get(url, headers=headers)
         if req.status_code == 200:
-            data = req.json().get("record", {})
+            gist_data = req.json()
+            file_content = gist_data['files'][GIST_FILENAME]['content']
             
-            # Sadece sistemin ihtiyacı olan 'users' ve 'chickens' kısmını alıyoruz
-            # 'DETAYLI_SIRALI_RAPOR' kısmını almıyoruz (O sadece okumak içindi)
+            data = json.loads(file_content)
+            
             users = data.get("users", [])
             chickens = data.get("chickens", [])
             
             if not users and not chickens:
-                print("⚠️ Bulut boş.")
+                print("⚠️ Gist boş.")
                 return
 
             conn = get_db_connection()
@@ -243,7 +245,7 @@ def restore_from_cloud():
             
             conn.commit()
             conn.close()
-            print("✅ Veriler geri yüklendi.")
+            print("✅ Veriler GitHub'dan yüklendi.")
     except Exception as e:
         print(f"Restore Hatası: {e}")
 
@@ -1316,6 +1318,7 @@ if __name__ == "__main__":
         except Exception as e:
             print(f"Hata: {e}")
             time.sleep(5)
+
 
 
 
