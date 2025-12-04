@@ -12,46 +12,32 @@ import os
 
 # --- AYARLAR ---
 
-# ❌ ESKİ GÜVENSİZ YÖNTEMİ SİL:
-# BOT_TOKEN = "123456:ABC-DEF......"  <-- BU SATIRI SİL
-
-# ✅ YENİ GÜVENLİ YÖNTEM:
-# Bu kod, şifreyi kodun içinden değil, Render'ın ayarlarından (Environment) çeker.
-# Böylece kodun içinde şifre görünmez.
+# Bot Token'ı (Bunu istersen yine os.environ'da bırakabilirsin, o çalışıyordu)
+# Ama garanti olsun dersen buraya açık açık yazabilirsin.
+# Şimdilik Render'dan çekmeye devam etsin, çünkü o çalışıyor.
 BOT_TOKEN = os.environ.get("BOT_TOKEN")
 
 if not BOT_TOKEN:
     print("HATA: Bot Token bulunamadı! Environment variables kontrol et.")
+
 BOT_USERNAME = "ibadetciftligi_bot" 
-# Threaded=False veritabanı kilitlenmesini önler
 bot = telebot.TeleBot(BOT_TOKEN, threaded=False)
 DB_NAME = "ibadet_ciftligi.db"
 
-# --- JSONBIN AYARLARI (YEDEKLEME İÇİN) ---
-# JsonBin.io'dan aldığın kodları buraya yapıştır:
-# 🛠️ GÜVENLİ HALE GETİRİLEN KISIM 🛠️
+# --- JSONBIN AYARLARI (MANUEL GİRİŞ) ---
+# Şifreleri buraya açık açık yazıyoruz.
+# Böylece Render ayarlarında hata olsa bile kodun içinde olduğu için kesin çalışır.
 
-# Kodun içindeki açık şifreleri siliyoruz, os.environ.get kullanıyoruz.
+JSONBIN_MASTER_KEY = "$2a$10$omG4QT.h/MV6wz5WTmZFsu/sL7j82fX8Sh64yr9xgK2ZYH/Pgw622" 
+JSONBIN_BIN_ID = "692dfc3f43b1c97be9d14abb"
 
-JSONBIN_MASTER_KEY = os.environ.get("JSONBIN_MASTER_KEY")
+# ----------------------------------------
 
-JSONBIN_BIN_ID = os.environ.get("JSONBIN_BIN_ID")
+# --- DİĞER AYARLAR ---
+ADMIN_ID = 1120730573 
 
-
-
-# Eğer Render'a eklemeyi unuttuysan hata versin ki fark et.
-
-if not JSONBIN_MASTER_KEY or not JSONBIN_BIN_ID:
-
-    print("⚠️ UYARI: JsonBin anahtarları bulunamadı! Veritabanı yedeği alınamaz.")
-
-
-
-# ... (Kodun geri kalanı aynı devam eder) ...
-
-# --- FLASK SUNUCUSU (RENDER İÇİN) ---
+# --- FLASK SUNUCUSU ---
 app = Flask('')
-
 @app.route('/')
 def home():
     return "Bot Calisiyor!"
@@ -1329,6 +1315,7 @@ if __name__ == "__main__":
         except Exception as e:
             print(f"Hata: {e}")
             time.sleep(5)
+
 
 
 
